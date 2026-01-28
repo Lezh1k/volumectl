@@ -140,11 +140,23 @@ int main(int argc, char *argv[]) {
     die("fcntl(stdin)");
   }
 
-  sigemptyset(&snd_block.sigset);
-  sigaddset(&snd_block.sigset, SIGINT);
-  sigaddset(&snd_block.sigset, SIGTERM);
-  sigaddset(&snd_block.sigset, SIGHUP);
-  sigaddset(&snd_block.sigset, SIGIO);
+  if (sigemptyset(&snd_block.sigset)) {
+    die("sigemptyset");
+  }
+
+  if (sigaddset(&snd_block.sigset, SIGINT)) {
+    die("sigaddset SIGINT");
+  }
+  if (sigaddset(&snd_block.sigset, SIGTERM)) {
+    die("sigaddset SIGTERM");
+  }
+  if (sigaddset(&snd_block.sigset, SIGHUP)) {
+    die("sigaddset SIGHUP");
+  }
+  if (sigaddset(&snd_block.sigset, SIGIO)) {
+    die("sigaddset SIGIO");
+  }
+
   if (sys_cloexec(STDIN_FILENO)) {
     die("sys_cloexec");
   }
