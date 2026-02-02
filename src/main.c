@@ -2,9 +2,15 @@
 #include "sys.h"
 
 #include <cjson/cJSON.h>
+
+#include <errno.h>
+#include <fcntl.h>
 #include <signal.h>
+
 #include <stdbool.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
 typedef struct {
   int x, y, relative_x, relative_y, width, height;
@@ -68,28 +74,27 @@ static int set_nonblocking(int fd) {
 static int line_getc(int fd, char *c) { return sys_read(fd, c, 1, NULL); }
 
 static ssize_t line_gets(int fd, char *buf, size_t size) {
-  size_t len = 0;
   int err;
 
-  for (;;) {
-    if (len >= size)
-      return -ENOSPC;
-
+  // don't want infinte loop here
+  for (size_t len = 0; len < size; ++len) {
     err = line_getc(fd, buf + len);
     if (err)
       return err;
-
-    if (buf[len++] == '\n')
-      break;
+    if (buf[len] == '\n')
+      return len;
   }
-
-  return len;
+  return -ENOSPC;
 }
 //////////////////////////////////////////////////////////////
 
 int main(int argc, char *argv[]) {
   (void)argc;
   (void)argv;
+
+  dlg_init_t di = {.width = 300, .heigth = 25, .pos_x = 1450, .pos_y = 25};
+  dlg_sound_raylib(22, di);
+  return 0;
 
   printf("{\"full_text\": \"snd_block\"}\n");
   fflush(stdout);
@@ -99,42 +104,6 @@ int main(int argc, char *argv[]) {
   struct sys_event_queue_vptr eq_vptr = sys_event_queue_vptr();
   snd_block_t snd_block = {0};
   const char *card = "default";
-  snd_ctl_t *ctl = NULL;
-
-  rc = snd_ctl_open(&ctl, card, 0);
-  if (rc < 0) {
-    fprintf(stderr, "snd_ctl_open(%s) failed: %s\n", card, snd_strerror(rc));
-    return 2;
-  }
-
-  rc = snd_ctl_subscribe_events(ctl, 1);
-  if (rc < 0) {
-    fprintf(stderr, "snd_ctl_subscribe_events failed: %s\n", snd_strerror(rc));
-    snd_ctl_close(ctl);
-    return 2;
-  }
-
-  // Add ALSA poll fds
-  int snd_fds_len = snd_ctl_poll_descriptors_count(ctl);
-  if (snd_fds_len <= 0) {
-    fprintf(stderr, "snd_ctl_poll_descriptors_count returned %d\n",
-            snd_fds_len);
-    snd_ctl_close(ctl);
-    return 3;
-  }
-
-  // sound poll file descriptors
-  struct pollfd *snd_pfds = malloc(sizeof(struct pollfd) * snd_fds_len);
-  if (!snd_pfds)
-    die("calloc pfds");
-
-  rc = snd_ctl_poll_descriptors(ctl, snd_pfds, snd_fds_len);
-  if (rc <= 0) {
-    fprintf(stderr, "snd_ctl_poll_descriptors returned %d\n", rc);
-    free(snd_pfds);
-    snd_ctl_close(ctl);
-    return 4;
-  }
 
   if (set_nonblocking(STDIN_FILENO) < 0) {
     die("fcntl(stdin)");
@@ -144,18 +113,18 @@ int main(int argc, char *argv[]) {
     die("sigemptyset");
   }
 
-  if (sigaddset(&snd_block.sigset, SIGINT)) {
-    die("sigaddset SIGINT");
-  }
-  if (sigaddset(&snd_block.sigset, SIGTERM)) {
-    die("sigaddset SIGTERM");
-  }
-  if (sigaddset(&snd_block.sigset, SIGHUP)) {
-    die("sigaddset SIGHUP");
-  }
-  if (sigaddset(&snd_block.sigset, SIGIO)) {
-    die("sigaddset SIGIO");
-  }
+#define SIGADDSET(SIG)                                                         \
+  do {                                                                         \
+    if (sigaddset(&snd_block.sigset, SIG)) {                                   \
+      die("sigaddset " #SIG);                                                  \
+    }                                                                          \
+  } while (0)
+
+  SIGADDSET(SIGINT);
+  SIGADDSET(SIGTERM);
+  SIGADDSET(SIGHUP);
+  SIGADDSET(SIGIO);
+#undef SIGADDSET
 
   if (sys_cloexec(STDIN_FILENO)) {
     die("sys_cloexec");
@@ -174,10 +143,6 @@ int main(int argc, char *argv[]) {
   rc = eq_vptr.add_fd(snd_block.poll_fd, STDIN_FILENO);
   if (rc) {
     die("eq_vptr.add_fd STDIN_FILENO");
-  }
-
-  for (int i = 0; i < snd_fds_len; i++) {
-    eq_vptr.add_fd(snd_block.poll_fd, snd_pfds[i].fd);
   }
 
   // poll events
@@ -228,71 +193,14 @@ int main(int argc, char *argv[]) {
       }
 
       // something related to sound system happened
-      snd_ctl_event_t *ev = NULL;
-      snd_ctl_event_alloca(&ev);
-
-      // just to avoid infinite loop:
-      for (int i = 0; i < 30; ++i) {
-        int rc = snd_ctl_read(ctl, ev);
-        if (rc == -EAGAIN)
-          break; // no more events
-
-        if (rc < 0) {
-          fprintf(stderr, "[alsa] snd_ctl_read error: %s\n", snd_strerror(rc));
-          break;
-        }
-
-        int etype = snd_ctl_event_get_type(ev);
-        if (etype != SND_CTL_EVENT_ELEM)
-          continue; // actually impossible
-
-        snd_ctl_elem_id_t *id = NULL;
-        snd_ctl_elem_id_alloca(&id);
-        snd_ctl_event_elem_get_id(ev, id);
-        unsigned int mask = snd_ctl_event_elem_get_mask(ev);
-
-        if (!(mask & SND_CTL_EVENT_MASK_VALUE)) {
-          fprintf(stderr, "[alsa] ELEM event is not value change. mask = %x\n",
-                  mask);
-          continue;
-        }
-
-        char name[128] = {0};
-        snprintf(name, sizeof(name), "%s", snd_ctl_elem_id_get_name(id));
-        fprintf(stderr,
-                "[alsa] ELEM event: name='%s' numid=%u iface=%d dev=%d "
-                "subdev=%d idx=%u mask=0x%x\n",
-                name, snd_ctl_elem_id_get_numid(id),
-                snd_ctl_elem_id_get_interface(id),
-                snd_ctl_elem_id_get_device(id),
-                snd_ctl_elem_id_get_subdevice(id),
-                snd_ctl_elem_id_get_index(id), mask);
-      } // for event in sound events (or until 30 iterations)
+      // TODO HANDLE SOMEHOW
     } // if (event.type == SYS_EVENT_FD)
   } // while 1
 
   // release resources
-  free(snd_pfds);
-  snd_ctl_close(ctl);
   if (eq_vptr.destroy(snd_block.poll_fd)) {
     die("eq_vptr.destroy");
   }
 
   return 0;
 }
-
-// int rc;
-// snd_ctx_alsa_t snd_ctx = {0};
-// if ((rc = snd_ctx_alsa_create(&snd_ctx))) {
-//   fprintf(stderr, "snd_ctx_alsa_create failed. err: %d\n", rc);
-//   return 1;
-// }
-// printf("snd ctx created\n");
-//
-// int64_t vol = 0;
-// if ((rc = snd_ctx_alsa_get_volume(&snd_ctx, &vol))) {
-//   fprintf(stderr, "snd_ctx_alsa_get_volume failed. err: %d\n", rc);
-//   return 2;
-// }
-//
-// dlg_sound(vol, &snd_ctx);

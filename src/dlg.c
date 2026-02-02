@@ -1,21 +1,21 @@
 #include "dlg.h"
+#include <SDL3/SDL.h>
+#include <SDL3/SDL_opengl.h>
 #include <microui.h>
 #include <raylib.h>
+#include <stdio.h>
 
 #define MAX(a, b) (((a) > (b)) ? (a) : (b))
 #define MIN(a, b) (((a) < (b)) ? (a) : (b))
 
 #define FONT_SIZE 20
-#define WINDOW_WIDTH 300
-#define WINDOW_HEIGHT 50
-#define WINDOW_MARGIN 0
 
 static int text_width(mu_Font font, const char *txt, int len) {
   return MeasureText(TextFormat("%.*s", len, txt), FONT_SIZE);
 }
 static int text_height(mu_Font font) { return FONT_SIZE; }
 
-int dlg_sound(int64_t vol, const snd_ctx_alsa_t *snd_ctx) {
+int dlg_sound_raylib(int64_t vol, dlg_init_t di) {
   int rc = 0;
   mu_Context __ctx = {0};
   mu_Context *ctx = &__ctx;
@@ -26,15 +26,13 @@ int dlg_sound(int64_t vol, const snd_ctx_alsa_t *snd_ctx) {
 
   float slider_curr = (float)vol;
   float slider_prev = slider_curr;
-  bool dragging = false;
 
-  Color rai_background = {.r = 0x00, .g = 0x55, .b = 0xaa, .a = 0x00};
+  Color rai_background = {.r = 0x00, .g = 0x55, .b = 0xaa, .a = 0xff};
   SetTargetFPS(60);
   SetConfigFlags(FLAG_WINDOW_UNDECORATED | FLAG_VSYNC_HINT);
-  InitWindow(WINDOW_WIDTH + WINDOW_MARGIN, WINDOW_HEIGHT + WINDOW_MARGIN,
-             "volumectl");
+  InitWindow(di.width, di.heigth, "volumectl");
+  SetWindowPosition(di.pos_x, di.pos_y);
 
-  SetWindowPosition(1420, 25); // TODO get these from input
   while (!WindowShouldClose()) {
     Vector2 wp = GetWindowPosition();
     Vector2 mp = GetMousePosition();
@@ -76,10 +74,9 @@ int dlg_sound(int64_t vol, const snd_ctx_alsa_t *snd_ctx) {
 
     // process ui
     mu_begin(ctx);
-    if (!mu_begin_window_ex(
-            ctx, "Volumectl",
-            mu_rect(WINDOW_MARGIN, WINDOW_MARGIN, WINDOW_WIDTH, WINDOW_HEIGHT),
-            MU_OPT_NOTITLE | MU_OPT_NORESIZE)) {
+    if (!mu_begin_window_ex(ctx, "Volumectl",
+                            mu_rect(0, 0, di.width, di.heigth),
+                            MU_OPT_NOTITLE | MU_OPT_NORESIZE)) {
       perror("mu_begin_window failed\n");
       return 1;
     }
@@ -109,17 +106,22 @@ int dlg_sound(int64_t vol, const snd_ctx_alsa_t *snd_ctx) {
     // !process commands end
 
     if (slider_prev != slider_curr) {
-      if ((rc = snd_ctx_alsa_set_volume(snd_ctx, (int)slider_curr))) {
-        fprintf(stderr, "snd_ctx_alsa_get_volume failed. err: %d\n", rc);
-      }
+      printf("todo handle volume changed: %.2f\n", slider_curr);
       slider_prev = slider_curr;
     }
 
-    ClearBackground(rai_background);
+    // actually we don't need it
+    // ClearBackground(rai_background);
     EndDrawing();
-  }
+  } // while (!WindowShouldClose())
 
   CloseWindow();
   return 0;
+}
+//////////////////////////////////////////////////////////////
+
+dlg_init_t default_di(void) {
+  dlg_init_t di = {.width = 300, .heigth = 25, .pos_x = 1450, .pos_y = 25};
+  return di;
 }
 //////////////////////////////////////////////////////////////

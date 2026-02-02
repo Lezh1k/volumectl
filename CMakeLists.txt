@@ -26,7 +26,6 @@ find_package( cJSON REQUIRED )
 
 if(LINUX)
     message(STATUS "Configuring for Linux")
-    find_package( ALSA REQUIRED )
 elseif(BSD)
     message(STATUS "Configuring for FreeBSD or another BSD system")
 else()
@@ -40,12 +39,10 @@ include_directories( ${cjson_INCLUDE_DIRS} )
 set(sources
   # sources
   src/main.c
-  src/alsa_sound_ctx.c
   src/sys.c
   src/dlg.c
 
   # headers
-  inc/alsa_sound_ctx.h
   inc/sys.h
   inc/dlg.h
 )
@@ -58,7 +55,7 @@ target_include_directories(${PROJECT_NAME} PRIVATE
   vendor/microui/src
 )
 
-target_link_libraries(${PROJECT_NAME} 
+target_link_libraries(${PROJECT_NAME} PRIVATE
   m
   microui
   raylib
@@ -67,9 +64,6 @@ target_link_libraries(${PROJECT_NAME}
 
 if(LINUX)
     message(STATUS "Configuring for Linux")
-    target_link_libraries(${PROJECT_NAME} 
-      ALSA::ALSA
-    )
 elseif(BSD)
     message(STATUS "Configuring for FreeBSD or another BSD system")
 else()
