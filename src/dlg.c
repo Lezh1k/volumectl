@@ -15,7 +15,7 @@ static int text_width(mu_Font font, const char *txt, int len) {
 }
 static int text_height(mu_Font font) { return FONT_SIZE; }
 
-int dlg_sound_raylib(int64_t vol, dlg_init_t di) {
+int dlg_sound_raylib(int64_t vol, const dlg_init_t *di) {
   int rc = 0;
   mu_Context __ctx = {0};
   mu_Context *ctx = &__ctx;
@@ -30,8 +30,8 @@ int dlg_sound_raylib(int64_t vol, dlg_init_t di) {
   Color rai_background = {.r = 0x00, .g = 0x55, .b = 0xaa, .a = 0xff};
   SetTargetFPS(60);
   SetConfigFlags(FLAG_WINDOW_UNDECORATED | FLAG_VSYNC_HINT);
-  InitWindow(di.width, di.heigth, "volumectl");
-  SetWindowPosition(di.pos_x, di.pos_y);
+  InitWindow(di->width, di->heigth, "volumectl");
+  SetWindowPosition(di->pos_x, di->pos_y);
 
   while (!WindowShouldClose()) {
     Vector2 wp = GetWindowPosition();
@@ -75,7 +75,7 @@ int dlg_sound_raylib(int64_t vol, dlg_init_t di) {
     // process ui
     mu_begin(ctx);
     if (!mu_begin_window_ex(ctx, "Volumectl",
-                            mu_rect(0, 0, di.width, di.heigth),
+                            mu_rect(0, 0, di->width, di->heigth),
                             MU_OPT_NOTITLE | MU_OPT_NORESIZE)) {
       perror("mu_begin_window failed\n");
       return 1;
@@ -120,7 +120,7 @@ int dlg_sound_raylib(int64_t vol, dlg_init_t di) {
 }
 //////////////////////////////////////////////////////////////
 
-dlg_init_t default_di(void) {
+dlg_init_t dlg_default_di(void) {
   dlg_init_t di = {.width = 300, .heigth = 25, .pos_x = 1450, .pos_y = 25};
   return di;
 }

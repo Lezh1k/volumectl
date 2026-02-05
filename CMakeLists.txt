@@ -23,6 +23,15 @@ set(CMAKE_CXX_FLAGS_DEBUG "-pipe -O0 -g")
 
 find_package( raylib REQUIRED )
 find_package( cJSON REQUIRED )
+find_package( PulseAudio REQUIRED )
+
+# these messages are just to be sure I uses variables correctly
+message( "raylib include dirs: ${raylib_INCLUDE_DIRS}" )
+message( "raylib libs: ${raylib_LIBRARIES}" )
+message( "cjson include dirs: ${CJSON_INCLUDE_DIRS}" )
+message( "cjson libs: ${CJSON_LIBRARIES}" )
+message( "PA include dirs: ${PULSEAUDIO_INCLUDE_DIR}" )
+message( "PA libs: ${PULSEAUDIO_LIBRARY}" )
 
 if(LINUX)
     message(STATUS "Configuring for Linux")
@@ -33,18 +42,22 @@ else()
 endif()
 
 
-include_directories( ${Raylib_INCLUDE_DIRS} )
-include_directories( ${cjson_INCLUDE_DIRS} )
+include_directories( ${raylib_INCLUDE_DIRS} )
+include_directories( ${CJSON_INCLUDE_DIRS} )
+include_directories( ${PULSEAUDIO_INCLUDE_DIR} )
 
 set(sources
-  # sources
-  src/main.c
-  src/sys.c
-  src/dlg.c
-
   # headers
   inc/sys.h
   inc/dlg.h
+
+  # sources
+  src/sys.c
+  src/dlg.c
+
+  src/main.c
+
+  # other files (like ui forms)
 )
 
 add_executable(${PROJECT_NAME} ${sources})
@@ -58,8 +71,9 @@ target_include_directories(${PROJECT_NAME} PRIVATE
 target_link_libraries(${PROJECT_NAME} PRIVATE
   m
   microui
-  raylib
-  cjson
+  ${raylib_LIBRARIES}
+  ${CJSON_LIBRARIES}
+  ${PULSEAUDIO_LIBRARY}
 )
 
 if(LINUX)

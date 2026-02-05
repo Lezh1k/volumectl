@@ -1,6 +1,7 @@
 #ifndef DLG_H
 #define DLG_H
 
+#include <stdbool.h>
 #include <stdint.h>
 
 typedef struct dlg_init {
@@ -10,7 +11,7 @@ typedef struct dlg_init {
   int32_t pos_y;
 } dlg_init_t;
 
-int dlg_sound_raylib(int64_t vol, dlg_init_t di);
-dlg_init_t default_di(void);
+int dlg_sound_raylib(int64_t vol, const dlg_init_t *di);
+dlg_init_t dlg_default_di(void);
 
 #endif
