@@ -133,14 +133,15 @@ static void pa_sink_info_cb(pa_context *c, const pa_sink_info *i, int eol,
     return;
   }
 
-  if (PA_SINK_IS_RUNNING(i->state)) {
+  if (!PA_SINK_IS_OPENED(i->state)) {
+    printf("name: %s NOT OPENED. state: %x\n", i->name, i->state);
     return;
   }
 
   printf("pa_sink_info_cb: eol=%d\n", eol);
   printf("\tname: %s\n", i->name);
-  printf("\tindex: %d\n", i->index);
   printf("\tdescription: %s\n", i->description);
+  printf("\tindex: %d\n", i->index);
   printf("\tmute: %d\n", i->mute);
   char buff[1024] = {0};
   pa_cvolume_snprint(buff, 1023, &i->volume);
