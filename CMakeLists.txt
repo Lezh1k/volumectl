@@ -48,14 +48,16 @@ include_directories( ${PULSEAUDIO_INCLUDE_DIR} )
 
 set(sources
   # headers
-  inc/sys.h
   inc/dlg.h
+  inc/log.h
+  inc/out.h
+  inc/sys.h
 
   # sources
-  src/sys.c
   src/dlg.c
-
   src/main.c
+  src/out.c
+  src/sys.c
 
   # other files (like ui forms)
 )

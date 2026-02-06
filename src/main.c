@@ -1,4 +1,6 @@
 #include "dlg.h"
+#include "log.h"
+#include "out.h"
 #include "sys.h"
 
 #include <cjson/cJSON.h>
@@ -12,12 +14,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-// AUDIO_HIGH_SYMBOL=${AUDIO_HIGH_SYMBOL:-'🔊'}
-// AUDIO_MED_THRESH=${AUDIO_MED_THRESH:-60}
-// AUDIO_MED_SYMBOL=${AUDIO_MED_SYMBOL:-'🔉'}
-// AUDIO_LOW_THRESH=${AUDIO_LOW_THRESH:-20}
-// AUDIO_LOW_SYMBOL=${AUDIO_LOW_SYMBOL:-'🔈'}
-// AUDIO_MUTED_SYMBOL=${AUDIO_MUTED_SYMBOL:-'🔇'}
+vlog_level_t log_level = VLOG_DEBUG;
 
 typedef struct click_info {
   int x, y, relative_x, relative_y, width, height;
@@ -84,14 +81,14 @@ ssize_t line_gets(int fd, char *buf, size_t size) {
 //////////////////////////////////////////////////////////////
 
 void die(const char *msg) {
-  perror(msg);
+  log_fatal("%s\n", msg);
   exit(1);
 }
 //////////////////////////////////////////////////////////////
 
 void pa_exit_signal_cb(pa_mainloop_api *api, pa_signal_event *e, int sig,
                        void *userdata) {
-  fprintf(stderr, "Got exit signal %d\n", sig);
+  log_trace("Got exit signal %d\n", sig);
   exit(0);
 }
 //////////////////////////////////////////////////////////////
@@ -99,6 +96,7 @@ void pa_exit_signal_cb(pa_mainloop_api *api, pa_signal_event *e, int sig,
 void pa_io_event_cb(pa_mainloop_api *ea, pa_io_event *e, int fd,
                     pa_io_event_flags_t events, void *userdata) {
   if (fd != STDIN_FILENO) {
+    log_debug("unexpected input fd: %d\n", fd);
     return; // we expect input only from stdin
   }
 
@@ -112,8 +110,7 @@ void pa_io_event_cb(pa_mainloop_api *ea, pa_io_event *e, int fd,
 
   click_info_t ci = {0};
   if (parse_click_info_json(buff, &ci)) {
-    fprintf(stderr, "[stdin] INVALID JSON: %zd bytes: %s\n", strlen(buff),
-            buff);
+    log_error("[stdin] INVALID JSON: %zd bytes: %s\n", strlen(buff), buff);
     return;
   }
   // todo show dialog
@@ -121,46 +118,13 @@ void pa_io_event_cb(pa_mainloop_api *ea, pa_io_event *e, int fd,
   dlg_init_t di = dlg_default_di();
   dlg_sound_raylib(22, &di);
 
-  fprintf(stderr, "[stdin] click_info:\n");
-  fprintf(stderr, "\tx: %d\n", ci.x);
-  fprintf(stderr, "\ty: %d\n", ci.y);
-  fprintf(stderr, "\trelative_x: %d\n", ci.relative_x);
-  fprintf(stderr, "\trelative_y: %d\n", ci.relative_y);
-  fprintf(stderr, "\twidth: %d\n", ci.width);
-  fprintf(stderr, "\theight: %d\n", ci.height);
-}
-//////////////////////////////////////////////////////////////
-
-// TODO REMOVE
-static void pretty_print_sink_info(const pa_sink_info *i) {
-  if (!i) {
-    return; // do nothing
-  }
-
-  // probably we want just first channel
-  uint64_t v = 0;
-  for (uint8_t ci = 0; ci < i->volume.channels; ++ci) {
-    v += (i->volume.values[ci] * 100 + PA_VOLUME_NORM / 2) / PA_VOLUME_NORM;
-  }
-  v /= i->volume.channels;
-
-  fprintf(stderr, "Sink #%u\n", i->index);
-  fprintf(stderr, "\tName: %s\n", i->name);
-  fprintf(stderr, "\tDescription: %s\n", i->description);
-  fprintf(stderr, "\tState: %s (%x)\n",
-          (i->state == PA_SINK_RUNNING ? "RUNNING"
-           : i->state == PA_SINK_IDLE  ? "IDLE"
-                                       : "SUSPENDED"),
-          i->state);
-  fprintf(stderr, "\tVolume: %lu%%\n", v);
-  fprintf(stderr, "\tMute: %s\n", i->mute ? "yes" : "no");
-  fprintf(stderr, "\tChannels: %d\n", i->sample_spec.channels);
-  fprintf(stderr, "\tSample Rate: %d Hz\n", i->sample_spec.rate);
-  fprintf(stderr, "\tMonitor Source: %s (#%u)\n", i->monitor_source_name,
-          i->monitor_source);
-  fprintf(stderr, "\tDriver: %s\n", i->driver);
-  fprintf(stderr, "\tModule: %u\n", i->owner_module);
-  fprintf(stderr, "----------------------------------------\n");
+  log_trace("[stdin] click_info:\n");
+  log_trace("\tx: %d\n", ci.x);
+  log_trace("\ty: %d\n", ci.y);
+  log_trace("\trelative_x: %d\n", ci.relative_x);
+  log_trace("\trelative_y: %d\n", ci.relative_y);
+  log_trace("\twidth: %d\n", ci.width);
+  log_trace("\theight: %d\n", ci.height);
 }
 //////////////////////////////////////////////////////////////
 
@@ -169,7 +133,32 @@ void pa_sink_info_cb(pa_context *c, const pa_sink_info *i, int eol,
   if (i == NULL) {
     return; // reached the end of list
   }
-  pretty_print_sink_info(i);
+
+  // probably we want just first channel
+  uint64_t v = 0;
+  for (uint8_t ci = 0; ci < i->volume.channels; ++ci) {
+    v += (i->volume.values[ci] * 100 + PA_VOLUME_NORM / 2) / PA_VOLUME_NORM;
+  }
+  v /= i->volume.channels;
+  volume_to_stdout(v);
+
+  log_trace("Sink #%u\n", i->index);
+  log_trace("\tName: %s\n", i->name);
+  log_trace("\tDescription: %s\n", i->description);
+  log_trace("\tState: %s (%x)\n",
+            (i->state == PA_SINK_RUNNING ? "RUNNING"
+             : i->state == PA_SINK_IDLE  ? "IDLE"
+                                         : "SUSPENDED"),
+            i->state);
+  log_trace("\tVolume: %lu%%\n", v);
+  log_trace("\tMute: %s\n", i->mute ? "yes" : "no");
+  log_trace("\tChannels: %d\n", i->sample_spec.channels);
+  log_trace("\tSample Rate: %d Hz\n", i->sample_spec.rate);
+  log_trace("\tMonitor Source: %s (#%u)\n", i->monitor_source_name,
+            i->monitor_source);
+  log_trace("\tDriver: %s\n", i->driver);
+  log_trace("\tModule: %u\n", i->owner_module);
+  log_trace("----------------------------------------\n");
 }
 //////////////////////////////////////////////////////////////
 
@@ -178,9 +167,8 @@ void ctx_on_change_cb(pa_context *c, pa_subscription_event_type_t t,
   pa_subscription_event_type_t facility =
       t & PA_SUBSCRIPTION_EVENT_FACILITY_MASK;
   pa_subscription_event_type_t op = t & PA_SUBSCRIPTION_EVENT_TYPE_MASK;
-  fprintf(stderr,
-          "ctx_on_change_cb: et = %x, idx = %d, facility = %x, op = %x\n", t,
-          idx, facility, op);
+  log_trace("ctx_on_change_cb: et = %x, idx = %d, facility = %x, op = %x\n", t,
+            idx, facility, op);
 
   if (facility == PA_SUBSCRIPTION_EVENT_SINK) {
     if (op == PA_SUBSCRIPTION_EVENT_CHANGE) {
@@ -194,7 +182,7 @@ void ctx_on_change_cb(pa_context *c, pa_subscription_event_type_t t,
 //////////////////////////////////////////////////////////////
 
 void subscribe_success_cb(pa_context *c, int success, void *userdata) {
-  fprintf(stderr, "subscribe_success_cb succes = %d\n", success);
+  log_trace("subscribe_success_cb succes = %d\n", success);
   if (!success) {
     die("subscribe_ctx_cb");
   }
@@ -204,20 +192,19 @@ void subscribe_success_cb(pa_context *c, int success, void *userdata) {
 
 void ctx_state_changed_cb(pa_context *pa_ctx, void *userdata) {
   pa_context_state_t state = pa_context_get_state(pa_ctx);
-  fprintf(stderr, "pa_context_notify_cb: state = %x\n", state);
+  log_trace("pa_context_notify_cb: state = %x\n", state);
 
   if (!PA_CONTEXT_IS_GOOD(state)) {
-    printf("!PA_CONTEXT_IS_GOOD\n");
     // todo restore it somehow, restart everything
     // etc., instead of die
-    die("!PA_CONTEXT_IS_GOOD\n");
+    die("PA_CONTEXT IS NOT GOOD\n");
   }
 
   if (state == PA_CONTEXT_READY) {
     pa_subscription_mask_t ctx_sub_msk = PA_SUBSCRIPTION_MASK_SINK;
     pa_operation *pa_op =
         pa_context_subscribe(pa_ctx, ctx_sub_msk, subscribe_success_cb, NULL);
-    fprintf(stderr, "pa_op: %p\n", pa_op);
+    log_debug("pa_op: %p\n", pa_op);
   }
 }
 //////////////////////////////////////////////////////////////
@@ -225,6 +212,7 @@ void ctx_state_changed_cb(pa_context *pa_ctx, void *userdata) {
 int main(int argc, char *argv[]) {
   (void)argc;
   (void)argv;
+
   int rc;
 
   // not sure if I need this
@@ -265,3 +253,4 @@ int main(int argc, char *argv[]) {
 
   return 0;
 }
+//////////////////////////////////////////////////////////////

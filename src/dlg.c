@@ -1,9 +1,7 @@
 #include "dlg.h"
-#include <SDL3/SDL.h>
-#include <SDL3/SDL_opengl.h>
+#include "log.h"
 #include <microui.h>
 #include <raylib.h>
-#include <stdio.h>
 
 #define MAX(a, b) (((a) > (b)) ? (a) : (b))
 #define MIN(a, b) (((a) < (b)) ? (a) : (b))
@@ -28,7 +26,7 @@ int dlg_sound_raylib(int64_t vol, const dlg_init_t *di) {
   float slider_prev = slider_curr;
 
   Color rai_background = {.r = 0x00, .g = 0x55, .b = 0xaa, .a = 0xff};
-  SetTargetFPS(30);
+  SetTargetFPS(60);
   SetConfigFlags(FLAG_WINDOW_UNDECORATED | FLAG_VSYNC_HINT);
   InitWindow(di->width, di->heigth, "volumectl");
   SetWindowPosition(di->pos_x, di->pos_y);
@@ -86,7 +84,7 @@ int dlg_sound_raylib(int64_t vol, const dlg_init_t *di) {
     mu_label(ctx, "vol: ");
     mu_slider_ex(ctx, &slider_curr, 0.0f, 100.f, 1.0f, "%.1f%%",
                  MU_OPT_EXPANDED | MU_OPT_ALIGNCENTER);
-     
+
     mu_end_window(ctx);
     mu_end(ctx);
     // !process ui end
@@ -108,7 +106,7 @@ int dlg_sound_raylib(int64_t vol, const dlg_init_t *di) {
     // !process commands end
 
     if (slider_prev != slider_curr) {
-      printf("todo handle volume changed: %.2f\n", slider_curr);
+      log_trace("todo handle volume changed: %.2f\n", slider_curr);
       slider_prev = slider_curr;
     }
 
