@@ -28,7 +28,7 @@ int dlg_sound_raylib(int64_t vol, const dlg_init_t *di) {
   float slider_prev = slider_curr;
 
   Color rai_background = {.r = 0x00, .g = 0x55, .b = 0xaa, .a = 0xff};
-  SetTargetFPS(60);
+  SetTargetFPS(30);
   SetConfigFlags(FLAG_WINDOW_UNDECORATED | FLAG_VSYNC_HINT);
   InitWindow(di->width, di->heigth, "volumectl");
   SetWindowPosition(di->pos_x, di->pos_y);
@@ -36,7 +36,6 @@ int dlg_sound_raylib(int64_t vol, const dlg_init_t *di) {
   while (!WindowShouldClose()) {
     Vector2 wp = GetWindowPosition();
     Vector2 mp = GetMousePosition();
-
     BeginDrawing();
 
     // mu_input functions
@@ -51,6 +50,8 @@ int dlg_sound_raylib(int64_t vol, const dlg_init_t *di) {
       if (IsMouseButtonUp(btn))
         mu_input_mouseup(ctx, mp.x, mp.y, 1 << btn);
     }
+
+    // keys
     const KeyboardKey keys_vol_up[] = {KEY_K, KEY_L, KEY_UP, KEY_RIGHT,
                                        KEY_NULL};
     const KeyboardKey keys_vol_down[] = {KEY_J, KEY_H, KEY_DOWN, KEY_LEFT,
@@ -85,6 +86,7 @@ int dlg_sound_raylib(int64_t vol, const dlg_init_t *di) {
     mu_label(ctx, "vol: ");
     mu_slider_ex(ctx, &slider_curr, 0.0f, 100.f, 1.0f, "%.1f%%",
                  MU_OPT_EXPANDED | MU_OPT_ALIGNCENTER);
+     
     mu_end_window(ctx);
     mu_end(ctx);
     // !process ui end
