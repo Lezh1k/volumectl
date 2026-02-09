@@ -36,7 +36,7 @@ void volume_to_stdout(int32_t vol, bool muted) {
     color = MUTED_COLOR;
   }
 
-  printf("{\"full_text\": \"%2s:%3d\", \"color\": \"%s\"}\n", prefix, vol,
+  printf("{\"full_text\": \"%2s:%3d%%\", \"color\": \"%s\"}\n", prefix, vol,
          color);
   fflush(stdout);
 }
