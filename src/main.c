@@ -16,7 +16,7 @@
 #include <string.h>
 
 vlog_level_t log_level = VLOG_DEBUG;
-static volatile bool g_running = 1;
+static volatile bool g_running = true;
 static int64_t g_curr_vol = 0;
 static uint32_t g_current_sink_idx = 0;
 
@@ -181,7 +181,6 @@ void ctx_on_change_cb(pa_context *c, pa_subscription_event_type_t t,
             idx, facility, op);
 
   if (facility == PA_SUBSCRIPTION_EVENT_SINK) {
-    g_current_sink_idx = idx;
     if (op == PA_SUBSCRIPTION_EVENT_CHANGE) {
       pa_operation *pop =
           pa_context_get_sink_info_by_index(c, idx, pa_sink_info_cb, userdata);
