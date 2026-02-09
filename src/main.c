@@ -17,7 +17,7 @@
 vlog_level_t log_level = VLOG_DEBUG;
 
 typedef struct click_info {
-  int x, y, relative_x, relative_y, width, height;
+  int x, y, rel_x, rel_y, blk_w, blk_h;
 } click_info_t;
 
 static int parse_click_info_json(const char *json, click_info_t *out);
@@ -45,9 +45,8 @@ int parse_click_info_json(const char *json, click_info_t *out) {
 
   const char *keys[] = {"x",     "y",      "relative_x", "relative_y",
                         "width", "height", NULL};
-  int *values[] = {
-      &out->x,      &out->y, &out->relative_x, &out->relative_y, &out->width,
-      &out->height, NULL};
+  int *values[] = {&out->x,     &out->y,     &out->rel_x, &out->rel_y,
+                   &out->blk_w, &out->blk_h, NULL};
   for (int i = 0; keys[i]; ++i) {
     cJSON *it = cJSON_GetObjectItemCaseSensitive(root, keys[i]);
     if (!cJSON_IsNumber(it))
@@ -113,34 +112,39 @@ void pa_io_event_cb(pa_mainloop_api *ea, pa_io_event *e, int fd,
     log_error("[stdin] INVALID JSON: %zd bytes: %s\n", strlen(buff), buff);
     return;
   }
-  // todo show dialog
 
-  dlg_init_t di = dlg_default_di();
+  // if panel on top - positive offset. else - negative offset (offset =
+  // block.height)
+  int32_t coeff = ci.y - ci.rel_y == 0 ? 1 : -1;
+  dlg_init_t di = {.width = ci.blk_w + 150,
+                   .heigth = ci.blk_h, // (same as block)
+                   .pos_x = ci.x - ci.rel_x - ci.blk_w / 2,
+                   .pos_y = ci.y - ci.rel_y + ci.blk_h * coeff};
   dlg_sound_raylib(22, &di);
 
   log_trace("[stdin] click_info:\n");
   log_trace("\tx: %d\n", ci.x);
   log_trace("\ty: %d\n", ci.y);
-  log_trace("\trelative_x: %d\n", ci.relative_x);
-  log_trace("\trelative_y: %d\n", ci.relative_y);
-  log_trace("\twidth: %d\n", ci.width);
-  log_trace("\theight: %d\n", ci.height);
+  log_trace("\trelative_x: %d\n", ci.rel_x);
+  log_trace("\trelative_y: %d\n", ci.rel_y);
+  log_trace("\twidth: %d\n", ci.blk_w);
+  log_trace("\theight: %d\n", ci.blk_h);
 }
 //////////////////////////////////////////////////////////////
 
 void pa_sink_info_cb(pa_context *c, const pa_sink_info *i, int eol,
                      void *userdata) {
   if (i == NULL) {
-    return; // reached the end of list
+    return; // probably impossible
   }
 
-  // probably we want just first channel
+  // we want just first channel actually, but let's do in a "right" way
   uint64_t v = 0;
   for (uint8_t ci = 0; ci < i->volume.channels; ++ci) {
     v += (i->volume.values[ci] * 100 + PA_VOLUME_NORM / 2) / PA_VOLUME_NORM;
   }
   v /= i->volume.channels;
-  volume_to_stdout(v);
+  volume_to_stdout(v, !!i->mute);
 
   log_trace("Sink #%u\n", i->index);
   log_trace("\tName: %s\n", i->name);
@@ -201,6 +205,8 @@ void ctx_state_changed_cb(pa_context *pa_ctx, void *userdata) {
   }
 
   if (state == PA_CONTEXT_READY) {
+    pa_context_get_sink_info_by_name(pa_ctx, NULL, pa_sink_info_cb, NULL);
+
     pa_subscription_mask_t ctx_sub_msk = PA_SUBSCRIPTION_MASK_SINK;
     pa_operation *pa_op =
         pa_context_subscribe(pa_ctx, ctx_sub_msk, subscribe_success_cb, NULL);
@@ -214,8 +220,6 @@ int main(int argc, char *argv[]) {
   (void)argv;
 
   int rc;
-
-  // not sure if I need this
   if (sys_cloexec(STDIN_FILENO)) {
     die("sys_cloexec");
   }
@@ -245,9 +249,9 @@ int main(int argc, char *argv[]) {
   rc = pa_context_connect(pa_ctx, NULL, PA_CONTEXT_NOFLAGS, NULL);
   pa_context_set_state_callback(pa_ctx, ctx_state_changed_cb, NULL);
 
+  // todo check pa_ioev
   pa_io_event *pa_ioev = pa_api->io_new(pa_api, STDIN_FILENO, PA_IO_EVENT_INPUT,
                                         pa_io_event_cb, NULL);
-
   pa_mainloop_run(pa_ml, &rc);
   pa_mainloop_free(pa_ml);
 

@@ -1,4 +1,5 @@
 #include "dlg.h"
+#include "out.h"
 #include "log.h"
 #include <microui.h>
 #include <raylib.h>
@@ -26,6 +27,8 @@ int dlg_sound_raylib(int64_t vol, const dlg_init_t *di) {
   float slider_prev = slider_curr;
 
   Color rai_background = {.r = 0x00, .g = 0x55, .b = 0xaa, .a = 0xff};
+  // I don't want any logs in STDOUT because use it in i3blocks env
+  SetTraceLogLevel(LOG_NONE);
   SetTargetFPS(60);
   SetConfigFlags(FLAG_WINDOW_UNDECORATED | FLAG_VSYNC_HINT);
   InitWindow(di->width, di->heigth, "volumectl");
@@ -76,7 +79,7 @@ int dlg_sound_raylib(int64_t vol, const dlg_init_t *di) {
     if (!mu_begin_window_ex(ctx, "Volumectl",
                             mu_rect(0, 0, di->width, di->heigth),
                             MU_OPT_NOTITLE | MU_OPT_NORESIZE)) {
-      perror("mu_begin_window failed\n");
+      log_error("mu_begin_window failed\n");
       return 1;
     }
 
@@ -106,7 +109,7 @@ int dlg_sound_raylib(int64_t vol, const dlg_init_t *di) {
     // !process commands end
 
     if (slider_prev != slider_curr) {
-      log_trace("todo handle volume changed: %.2f\n", slider_curr);
+      volume_to_stdout((int)slider_curr, false); // todo pass it here
       slider_prev = slider_curr;
     }
 

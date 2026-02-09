@@ -14,7 +14,7 @@ static const char *COLOR_YELLOW = "#ffff40";
 static const char *COLOR_RED = "#c90007";
 static const char *MUTED_COLOR = "#8d9196";
 
-void volume_to_stdout(int32_t vol) {
+void volume_to_stdout(int32_t vol, bool muted) {
   const char *prefix = MUT_SYMBOL;
   const char *color = MUTED_COLOR;
   if (vol > AUDIO_MED_THRESH) {
@@ -30,5 +30,13 @@ void volume_to_stdout(int32_t vol) {
     prefix = MUT_SYMBOL;
     color = MUTED_COLOR;
   }
-  printf("{\"full_text\": \"%s:%d\", \"color\": \"%s\"}\n", prefix, vol, color);
+
+  if (muted) {
+    prefix = MUT_SYMBOL;
+    color = MUTED_COLOR;
+  }
+
+  printf("{\"full_text\": \"%2s:%3d\", \"color\": \"%s\"}\n", prefix, vol,
+         color);
+  fflush(stdout);
 }
