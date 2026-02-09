@@ -11,7 +11,12 @@ typedef struct dlg_init {
   int32_t pos_y;
 } dlg_init_t;
 
-int dlg_sound_raylib(int64_t vol, const dlg_init_t *di);
-dlg_init_t dlg_default_di(void);
+int dlg_open(int64_t vol, const dlg_init_t *di);
+int dlg_tick(void);
+void dlg_close(void);
+
+bool dlg_is_open(void);
+int32_t dlg_current_vol(void);
+
 
 #endif

@@ -6,6 +6,7 @@
 #include <cjson/cJSON.h>
 
 #include <errno.h>
+#include <math.h>
 #include <signal.h>
 
 #include <pulse/pulseaudio.h>
@@ -15,6 +16,9 @@
 #include <string.h>
 
 vlog_level_t log_level = VLOG_DEBUG;
+static volatile bool g_running = 1;
+static int64_t g_curr_vol = 0;
+static uint32_t g_current_sink_idx = 0;
 
 typedef struct click_info {
   int x, y, rel_x, rel_y, blk_w, blk_h;
@@ -88,7 +92,7 @@ void die(const char *msg) {
 void pa_exit_signal_cb(pa_mainloop_api *api, pa_signal_event *e, int sig,
                        void *userdata) {
   log_trace("Got exit signal %d\n", sig);
-  exit(0);
+  g_running = false;
 }
 //////////////////////////////////////////////////////////////
 
@@ -120,7 +124,7 @@ void pa_io_event_cb(pa_mainloop_api *ea, pa_io_event *e, int fd,
                    .heigth = ci.blk_h, // (same as block)
                    .pos_x = ci.x - ci.rel_x - ci.blk_w / 2,
                    .pos_y = ci.y - ci.rel_y + ci.blk_h * coeff};
-  dlg_sound_raylib(22, &di);
+  dlg_open(g_curr_vol, &di);
 
   log_trace("[stdin] click_info:\n");
   log_trace("\tx: %d\n", ci.x);
@@ -138,12 +142,14 @@ void pa_sink_info_cb(pa_context *c, const pa_sink_info *i, int eol,
     return; // probably impossible
   }
 
+  g_current_sink_idx = i->index;
   // we want just first channel actually, but let's do in a "right" way
   uint64_t v = 0;
   for (uint8_t ci = 0; ci < i->volume.channels; ++ci) {
     v += (i->volume.values[ci] * 100 + PA_VOLUME_NORM / 2) / PA_VOLUME_NORM;
   }
   v /= i->volume.channels;
+  g_curr_vol = (int64_t)v;
   volume_to_stdout(v, !!i->mute);
 
   log_trace("Sink #%u\n", i->index);
@@ -175,6 +181,7 @@ void ctx_on_change_cb(pa_context *c, pa_subscription_event_type_t t,
             idx, facility, op);
 
   if (facility == PA_SUBSCRIPTION_EVENT_SINK) {
+    g_current_sink_idx = idx;
     if (op == PA_SUBSCRIPTION_EVENT_CHANGE) {
       pa_context_get_sink_info_by_index(c, idx, pa_sink_info_cb, userdata);
     }
@@ -208,16 +215,46 @@ void ctx_state_changed_cb(pa_context *pa_ctx, void *userdata) {
     pa_context_get_sink_info_by_name(pa_ctx, NULL, pa_sink_info_cb, NULL);
 
     pa_subscription_mask_t ctx_sub_msk = PA_SUBSCRIPTION_MASK_SINK;
-    pa_operation *pa_op =
+    pa_operation *op =
         pa_context_subscribe(pa_ctx, ctx_sub_msk, subscribe_success_cb, NULL);
-    log_debug("pa_op: %p\n", pa_op);
+    log_debug("pa_op: %p\n", op);
+    if (op) {
+      pa_operation_unref(op);
+    }
   }
 }
 //////////////////////////////////////////////////////////////
 
-int main(int argc, char *argv[]) {
+static void set_sink_vol_status_cb(pa_context *c, int success, void *userdata) {
+  if (!success) {
+    log_error("set_sink_vol_cb:: set vol not success\n");
+  }
+  log_debug("set_sink_vol_cb:: success\n");
+  return;
+}
+
+static void set_sink_volume_cb(pa_context *c, const pa_sink_info *i, int eol,
+                               void *userdata) {
+  if (i == NULL) {
+    return;
+  }
+
+  pa_cvolume cv;
+  int64_t dlg_vol = dlg_current_vol();
+  double d_vol = dlg_vol / 100.0;
+  pa_volume_t v = llround(d_vol * PA_VOLUME_NORM);
+  pa_cvolume_set(&cv, i->channel_map.channels, v);
+  pa_operation *op = pa_context_set_sink_volume_by_index(
+      c, i->index, &cv, set_sink_vol_status_cb, NULL);
+  if (op) {
+    pa_operation_unref(op);
+  }
+}
+
+int main(int argc, char *argv[], char **env) {
   (void)argc;
   (void)argv;
+  (void)env;
 
   int rc;
   if (sys_cloexec(STDIN_FILENO)) {
@@ -248,13 +285,27 @@ int main(int argc, char *argv[]) {
   pa_context *pa_ctx = pa_context_new(pa_api, "volumectl");
   rc = pa_context_connect(pa_ctx, NULL, PA_CONTEXT_NOFLAGS, NULL);
   pa_context_set_state_callback(pa_ctx, ctx_state_changed_cb, NULL);
-
-  // todo check pa_ioev
   pa_io_event *pa_ioev = pa_api->io_new(pa_api, STDIN_FILENO, PA_IO_EVENT_INPUT,
                                         pa_io_event_cb, NULL);
-  pa_mainloop_run(pa_ml, &rc);
-  pa_mainloop_free(pa_ml);
 
+  // g_running changes via signal, see pa_exit_signal_cb
+  while (g_running && (pa_mainloop_iterate(pa_ml, 0, &rc) >= 0)) {
+    if (dlg_is_open()) {
+      dlg_tick();
+      int64_t dlg_vol = dlg_current_vol();
+      if (dlg_vol != g_curr_vol) {
+        // we want change it for current sink. but now just print
+        // volume_to_stdout(dlg_vol, false);
+        pa_context_get_sink_info_by_index(pa_ctx, g_current_sink_idx,
+                                          set_sink_volume_cb, NULL);
+        g_curr_vol = dlg_vol;
+      }
+    }
+    usleep(1000);
+  }
+
+  log_trace("pa_mainloop_free\n");
+  pa_mainloop_free(pa_ml);
   return 0;
 }
 //////////////////////////////////////////////////////////////
