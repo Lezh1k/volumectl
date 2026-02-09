@@ -183,10 +183,18 @@ void ctx_on_change_cb(pa_context *c, pa_subscription_event_type_t t,
   if (facility == PA_SUBSCRIPTION_EVENT_SINK) {
     g_current_sink_idx = idx;
     if (op == PA_SUBSCRIPTION_EVENT_CHANGE) {
-      pa_context_get_sink_info_by_index(c, idx, pa_sink_info_cb, userdata);
+      pa_operation *pop =
+          pa_context_get_sink_info_by_index(c, idx, pa_sink_info_cb, userdata);
+      if (pop) {
+        pa_operation_unref(pop);
+      }
     }
     if (op == PA_SUBSCRIPTION_EVENT_NEW) {
-      pa_context_get_sink_info_by_index(c, idx, pa_sink_info_cb, userdata);
+      pa_operation *pop =
+          pa_context_get_sink_info_by_index(c, idx, pa_sink_info_cb, userdata);
+      if (pop) {
+        pa_operation_unref(pop);
+      }
     }
   } // if (facility == PA_SUBSCRIPTION_EVENT_SINK)
 }
@@ -212,7 +220,11 @@ void ctx_state_changed_cb(pa_context *pa_ctx, void *userdata) {
   }
 
   if (state == PA_CONTEXT_READY) {
-    pa_context_get_sink_info_by_name(pa_ctx, NULL, pa_sink_info_cb, NULL);
+    pa_operation *init_op =
+        pa_context_get_sink_info_by_name(pa_ctx, NULL, pa_sink_info_cb, NULL);
+    if (init_op) {
+      pa_operation_unref(init_op);
+    }
 
     pa_subscription_mask_t ctx_sub_msk = PA_SUBSCRIPTION_MASK_SINK;
     pa_operation *op =
@@ -294,15 +306,19 @@ int main(int argc, char *argv[], char **env) {
       dlg_tick();
       int64_t dlg_vol = dlg_current_vol();
       if (dlg_vol != g_curr_vol) {
-        pa_context_get_sink_info_by_index(pa_ctx, g_current_sink_idx,
-                                          set_sink_volume_cb, NULL);
+        pa_operation *op = pa_context_get_sink_info_by_index(
+            pa_ctx, g_current_sink_idx, set_sink_volume_cb, NULL);
         g_curr_vol = dlg_vol;
+        if (op) {
+          pa_operation_unref(op);
+        }
       }
     }
     usleep(1000);
   }
 
   log_trace("pa_mainloop_free\n");
+  pa_context_unref(pa_ctx);
   pa_mainloop_free(pa_ml);
   return 0;
 }
