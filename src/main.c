@@ -294,8 +294,6 @@ int main(int argc, char *argv[], char **env) {
       dlg_tick();
       int64_t dlg_vol = dlg_current_vol();
       if (dlg_vol != g_curr_vol) {
-        // we want change it for current sink. but now just print
-        // volume_to_stdout(dlg_vol, false);
         pa_context_get_sink_info_by_index(pa_ctx, g_current_sink_idx,
                                           set_sink_volume_cb, NULL);
         g_curr_vol = dlg_vol;
