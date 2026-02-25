@@ -15,7 +15,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-vlog_level_t log_level = VLOG_DEBUG;
+vlog_level_t log_level = VLOG_TRACE;
 static volatile bool g_running = true;
 static int64_t g_curr_vol = 0;
 static uint32_t g_current_sink_idx = 0;
@@ -243,6 +243,7 @@ static void set_sink_vol_status_cb(pa_context *c, int success, void *userdata) {
   log_debug("set_sink_vol_cb:: success\n");
   return;
 }
+//////////////////////////////////////////////////////////////
 
 static void set_sink_volume_cb(pa_context *c, const pa_sink_info *i, int eol,
                                void *userdata) {
@@ -261,6 +262,7 @@ static void set_sink_volume_cb(pa_context *c, const pa_sink_info *i, int eol,
     pa_operation_unref(op);
   }
 }
+//////////////////////////////////////////////////////////////
 
 int main(int argc, char *argv[], char **env) {
   (void)argc;
@@ -313,7 +315,7 @@ int main(int argc, char *argv[], char **env) {
         }
       }
     }
-    usleep(1000);
+    usleep(16000); // because of 60 frames per second
   }
 
   log_trace("pa_mainloop_free\n");

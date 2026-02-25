@@ -1,6 +1,5 @@
 #include "dlg.h"
 #include "log.h"
-#include "out.h"
 #include <microui.h>
 #include <raylib.h>
 
