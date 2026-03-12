@@ -18,7 +18,9 @@
 vlog_level_t log_level = VLOG_TRACE;
 static volatile bool g_running = true;
 static int64_t g_curr_vol = 0;
+
 static uint32_t g_current_sink_idx = 0;
+static uint8_t g_current_sink_channels = 0;
 
 typedef struct click_info {
   int x, y, rel_x, rel_y, blk_w, blk_h;
@@ -38,6 +40,11 @@ static void ctx_on_change_cb(pa_context *c, pa_subscription_event_type_t t,
                              uint32_t idx, void *userdata);
 static void subscribe_success_cb(pa_context *c, int success, void *userdata);
 static void ctx_state_changed_cb(pa_context *pa_ctx, void *userdata);
+static void set_sink_vol_status_cb(pa_context *c, int success, void *userdata);
+static void set_sink_volume_by_idx_and_channels(pa_context *c, uint32_t idx,
+                                                uint8_t channels);
+static void set_sink_volume_cb(pa_context *c, const pa_sink_info *i, int eol,
+                               void *userdata);
 
 int parse_click_info_json(const char *json, click_info_t *out) {
   if (!json || !out)
@@ -143,6 +150,8 @@ void pa_sink_info_cb(pa_context *c, const pa_sink_info *i, int eol,
   }
 
   g_current_sink_idx = i->index;
+  g_current_sink_channels = i->channel_map.channels;
+
   // we want just first channel actually, but let's do in a "right" way
   uint64_t v = 0;
   for (uint8_t ci = 0; ci < i->volume.channels; ++ci) {
@@ -150,7 +159,11 @@ void pa_sink_info_cb(pa_context *c, const pa_sink_info *i, int eol,
   }
   v /= i->volume.channels;
   g_curr_vol = (int64_t)v;
-  volume_to_stdout(v, !!i->mute);
+
+  // questionable. but if dlg_is_open we use optimistic update in main
+  if (!dlg_is_open()) {
+    volume_to_stdout(v, !!i->mute);
+  }
 
   log_trace("Sink #%u\n", i->index);
   log_trace("\tName: %s\n", i->name);
@@ -236,7 +249,7 @@ void ctx_state_changed_cb(pa_context *pa_ctx, void *userdata) {
 }
 //////////////////////////////////////////////////////////////
 
-static void set_sink_vol_status_cb(pa_context *c, int success, void *userdata) {
+void set_sink_vol_status_cb(pa_context *c, int success, void *userdata) {
   if (!success) {
     log_error("set_sink_vol_cb:: set vol not success\n");
   }
@@ -245,22 +258,27 @@ static void set_sink_vol_status_cb(pa_context *c, int success, void *userdata) {
 }
 //////////////////////////////////////////////////////////////
 
-static void set_sink_volume_cb(pa_context *c, const pa_sink_info *i, int eol,
-                               void *userdata) {
-  if (i == NULL) {
-    return;
-  }
-
+void set_sink_volume_by_idx_and_channels(pa_context *c, uint32_t idx,
+                                         uint8_t channels) {
   pa_cvolume cv;
   int64_t dlg_vol = dlg_current_vol();
   double d_vol = dlg_vol / 100.0;
   pa_volume_t v = llround(d_vol * PA_VOLUME_NORM);
-  pa_cvolume_set(&cv, i->channel_map.channels, v);
+  pa_cvolume_set(&cv, channels, v);
   pa_operation *op = pa_context_set_sink_volume_by_index(
-      c, i->index, &cv, set_sink_vol_status_cb, NULL);
+      c, idx, &cv, set_sink_vol_status_cb, NULL);
   if (op) {
     pa_operation_unref(op);
   }
+}
+//////////////////////////////////////////////////////////////
+
+void set_sink_volume_cb(pa_context *c, const pa_sink_info *i, int eol,
+                        void *userdata) {
+  if (i == NULL) {
+    return;
+  }
+  set_sink_volume_by_idx_and_channels(c, i->index, i->channel_map.channels);
 }
 //////////////////////////////////////////////////////////////
 
@@ -307,12 +325,22 @@ int main(int argc, char *argv[], char **env) {
       dlg_tick();
       int64_t dlg_vol = dlg_current_vol();
       if (dlg_vol != g_curr_vol) {
-        pa_operation *op = pa_context_get_sink_info_by_index(
-            pa_ctx, g_current_sink_idx, set_sink_volume_cb, NULL);
+        // pa_operation *op = pa_context_get_sink_info_by_index(
+        //     pa_ctx, g_current_sink_idx, set_sink_volume_cb, NULL);
+        // if (op) {
+        //   pa_operation_unref(op);
+        // }
+
+
+        // Performance HACK!
+        // 1. Optimistic panel update
+        // 2. Direct set volume using global sink index and sink channels
+        // By doing this I'm avoiding round trip (pa_context_get_sink_info_by_index -> set_sink_volume_cb)
+        // This makes update in i3block panel
+        volume_to_stdout(dlg_vol, dlg_vol == 0);
+        set_sink_volume_by_idx_and_channels(pa_ctx, g_current_sink_idx,
+                                            g_current_sink_channels);
         g_curr_vol = dlg_vol;
-        if (op) {
-          pa_operation_unref(op);
-        }
       }
     }
     usleep(16000); // because of 60 frames per second
