@@ -14,6 +14,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
+#include <unistd.h>
 
 vlog_level_t log_level = VLOG_TRACE;
 static volatile bool g_running = true;
@@ -286,6 +288,7 @@ int main(int argc, char *argv[], char **env) {
   (void)argc;
   (void)argv;
   (void)env;
+  struct timespec ts_sleep_between_frames = {.tv_sec = 0, .tv_nsec = 16000};
 
   int rc;
   if (sys_cloexec(STDIN_FILENO)) {
@@ -331,22 +334,23 @@ int main(int argc, char *argv[], char **env) {
         //   pa_operation_unref(op);
         // }
 
-
         // Performance HACK!
         // 1. Optimistic panel update
         // 2. Direct set volume using global sink index and sink channels
-        // By doing this I'm avoiding round trip (pa_context_get_sink_info_by_index -> set_sink_volume_cb)
-        // This makes update in i3block panel MUCH faster
+        // By doing this I'm avoiding round trip
+        // (pa_context_get_sink_info_by_index -> set_sink_volume_cb) This makes
+        // update in i3block panel MUCH faster
         volume_to_stdout(dlg_vol, dlg_vol == 0);
         set_sink_volume_by_idx_and_channels(pa_ctx, g_current_sink_idx,
                                             g_current_sink_channels);
         g_curr_vol = dlg_vol;
       }
     }
-    usleep(16000); // because of 60 frames per second
+    nanosleep(&ts_sleep_between_frames, NULL);
   }
 
   log_trace("pa_mainloop_free\n");
+  pa_api->io_free(pa_ioev);
   pa_context_unref(pa_ctx);
   pa_mainloop_free(pa_ml);
   return 0;

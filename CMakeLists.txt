@@ -1,23 +1,16 @@
-cmake_minimum_required( VERSION 3.16 )
+cmake_minimum_required(VERSION 3.16)
 
-SET( CMAKE_C_COMPILER clang )
-SET( CMAKE_CXX_COMPILER clang++ )
+project(volumectl VERSION 0.1 LANGUAGES C)
 
-project( volumectl VERSION 0.1 LANGUAGES C )
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-set( CMAKE_EXPORT_COMPILE_COMMANDS ON )
-
-if( CMAKE_BUILD_TYPE MATCHES Debug )
-  message( "Debug build." )
-elseif( CMAKE_BUILD_TYPE MATCHES Release )
-  message( "Release build." )
-else()
-  message( "Some other build type. Setting up default = Release" )
-  set( CMAKE_BUILD_TYPE Release )
+if(NOT CMAKE_BUILD_TYPE)
+  set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type" FORCE)
 endif()
 
-set( CMAKE_CXX_FLAGS_RELEASE "-pipe -O2 -march=native -mtune=native" )
-set( CMAKE_CXX_FLAGS_DEBUG "-pipe -O0 -g" )
+set(CMAKE_C_STANDARD 11)
+set(CMAKE_C_STANDARD_REQUIRED ON)
+set(CMAKE_C_EXTENSIONS OFF)
 
 find_package( raylib REQUIRED )
 find_package( cJSON REQUIRED )
@@ -39,11 +32,6 @@ else()
     message(FATAL_ERROR "Unsupported operating system")
 endif()
 
-
-include_directories( ${raylib_INCLUDE_DIRS} )
-include_directories( ${CJSON_INCLUDE_DIRS} )
-include_directories( ${PULSEAUDIO_INCLUDE_DIR} )
-
 set(sources
   # headers
   inc/dlg.h
@@ -63,9 +51,22 @@ set(sources
 add_executable( ${PROJECT_NAME} ${sources} )
 add_library( microui STATIC vendor/microui/src/microui.h vendor/microui/src/microui.c )
 
+target_compile_definitions(${PROJECT_NAME} PRIVATE
+  _POSIX_C_SOURCE=200809L
+)
+
+target_compile_options(${PROJECT_NAME} PRIVATE
+  -Wall
+  -Wextra
+  -Wpedantic
+)
+
 target_include_directories( ${PROJECT_NAME} PRIVATE 
   inc
   vendor/microui/src
+  ${raylib_INCLUDE_DIRS} 
+  ${CJSON_INCLUDE_DIRS} 
+  ${PULSEAUDIO_INCLUDE_DIR} 
 )
 
 target_link_libraries( ${PROJECT_NAME} PRIVATE
