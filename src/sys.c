@@ -58,8 +58,8 @@ static int sys_setfd(int fd, int flags) {
 }
 
 int sys_cloexec(int fd) {
-  int flags;
-  int err;
+  int flags = 0;
+  int err = 0;
 
   err = sys_getfd(fd, &flags);
   if (err)

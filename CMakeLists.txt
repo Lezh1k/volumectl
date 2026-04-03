@@ -59,6 +59,13 @@ target_compile_options(${PROJECT_NAME} PRIVATE
   -Wall
   -Wextra
   -Wpedantic
+  $<$<CONFIG:Release>:-O2>
+  $<$<CONFIG:Debug>:-O0 -g>
+)
+
+target_compile_options(microui PRIVATE
+  $<$<CONFIG:Release>:-O2>
+  $<$<CONFIG:Debug>:-O0 -g>
 )
 
 target_include_directories( ${PROJECT_NAME} PRIVATE 

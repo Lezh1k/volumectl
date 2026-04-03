@@ -9,9 +9,13 @@
 #define FONT_SIZE 20
 
 static int text_width(mu_Font font, const char *txt, int len) {
+  (void)font;
   return MeasureText(TextFormat("%.*s", len, txt), FONT_SIZE);
 }
-static int text_height(mu_Font font) { return FONT_SIZE; }
+static int text_height(mu_Font font) {
+  (void)font;
+  return FONT_SIZE;
+}
 
 static volatile bool g_open = false;
 static mu_Context g_ctx = {0};
@@ -97,7 +101,7 @@ int dlg_tick(void) {
   if (!mu_begin_window_ex(&g_ctx, "Volumectl",
                           mu_rect(0, 0, g_di.width, g_di.heigth),
                           MU_OPT_NOTITLE | MU_OPT_NORESIZE)) {
-    log_error("mu_begin_window failed\n");
+    log_error("mu_begin_window failed: %d\n", 1);
     dlg_close();
     return 0;
   }
