@@ -1,13 +1,15 @@
+local target = "./build/volumectl"
+
 local function save_and_run()
   vim.cmd([[wa]])
   vim.cmd([[belowright split]])
   vim.cmd([[resize -4]])
-  vim.cmd([[terminal cmake -B build && cmake --build build -j16 && ./build/volumectl]])
+  vim.cmd("terminal cmake -B build && cmake --build build -j16 && " .. target)
 end
 
 local function save_and_debug()
   vim.cmd([[wa]])
-  vim.cmd([[terminal cmake -S . -B ./build && cmake --build build && gdb -q ./build/volumectl]])
+  vim.cmd("terminal cmake -S . -B ./build && cmake --build build && gdb -q " .. target)
 end
 
 local function save_and_run_unit_tests()
