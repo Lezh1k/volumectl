@@ -17,11 +17,11 @@ find_package( cJSON REQUIRED )
 find_package( PulseAudio REQUIRED )
 
 # these messages are just to be sure I uses variables correctly
-message( "raylib include dirs: ${raylib_INCLUDE_DIRS}" )
+message( "raylib incs: ${raylib_INCLUDE_DIRS}" )
 message( "raylib libs: ${raylib_LIBRARIES}" )
-message( "cjson include dirs: ${CJSON_INCLUDE_DIRS}" )
+message( "cjson incs: ${CJSON_INCLUDE_DIRS}" )
 message( "cjson libs: ${CJSON_LIBRARIES}" )
-message( "PA include dirs: ${PULSEAUDIO_INCLUDE_DIR}" )
+message( "PA incs: ${PULSEAUDIO_INCLUDE_DIR}" )
 message( "PA libs: ${PULSEAUDIO_LIBRARY}" )
 
 if(LINUX)
@@ -52,6 +52,7 @@ add_executable( ${PROJECT_NAME} ${sources} )
 add_library( microui STATIC vendor/microui/src/microui.h vendor/microui/src/microui.c )
 
 target_compile_definitions(${PROJECT_NAME} PRIVATE
+  _posix_c_source=200809l
   _POSIX_C_SOURCE=200809L
 )
 
