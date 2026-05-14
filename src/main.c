@@ -288,7 +288,6 @@ int main(int argc, char *argv[], char **env) {
   (void)argc;
   (void)argv;
   (void)env;
-  struct timespec ts_sleep_between_frames = {.tv_sec = 0, .tv_nsec = 16000};
 
   int rc;
   if (sys_cloexec(STDIN_FILENO)) {
@@ -322,18 +321,14 @@ int main(int argc, char *argv[], char **env) {
   pa_io_event *pa_ioev = pa_api->io_new(pa_api, STDIN_FILENO, PA_IO_EVENT_INPUT,
                                         pa_io_event_cb, NULL);
 
+  // FPS = 60 so sleep should be 16000ns
+  struct timespec ts_sleep_between_frames = {.tv_sec = 0, .tv_nsec = 16000};
   // g_running changes via signal, see pa_exit_signal_cb
   while (g_running && (pa_mainloop_iterate(pa_ml, 0, &rc) >= 0)) {
     if (dlg_is_open()) {
       dlg_tick();
       int64_t dlg_vol = dlg_current_vol();
       if (dlg_vol != g_curr_vol) {
-        // pa_operation *op = pa_context_get_sink_info_by_index(
-        //     pa_ctx, g_current_sink_idx, set_sink_volume_cb, NULL);
-        // if (op) {
-        //   pa_operation_unref(op);
-        // }
-
         // Performance HACK!
         // 1. Optimistic panel update
         // 2. Direct set volume using global sink index and sink channels

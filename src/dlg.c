@@ -21,6 +21,7 @@ static volatile bool g_open = false;
 static mu_Context g_ctx = {0};
 static float g_slider_curr = 0.0f;
 static float g_slider_prev = 0.0f;
+static float g_idle = 0.0f;
 static dlg_init_t g_di = {0};
 
 int dlg_open(int64_t vol, const dlg_init_t *di) {
@@ -61,6 +62,7 @@ int dlg_tick(void) {
   Vector2 mp = GetMousePosition();
   BeginDrawing();
 
+  bool input_event_happened = false;
   // mu_input functions
   // MOUSE_BUTTON_LEFT = 0 and MU_MOUSE_LEFT = (1 << 0)
   // MOUSE_BUTTON_RIGHT = 1 and MU_MOUSE_RIGHT = (1 << 1)
@@ -69,6 +71,7 @@ int dlg_tick(void) {
   for (int btn = MOUSE_BUTTON_LEFT; btn <= MOUSE_BUTTON_MIDDLE; ++btn) {
     if (IsMouseButtonDown(btn)) {
       mu_input_mousedown(&g_ctx, mp.x, mp.y, 1 << btn);
+      input_event_happened = true;
     }
     if (IsMouseButtonUp(btn)) {
       mu_input_mouseup(&g_ctx, mp.x, mp.y, 1 << btn);
@@ -82,12 +85,14 @@ int dlg_tick(void) {
   for (const KeyboardKey *pk = keys_vol_up; *pk != KEY_NULL; ++pk) {
     if (IsKeyPressed(*pk)) {
       ++g_slider_curr;
+      input_event_happened = true;
       break;
     }
   }
   for (const KeyboardKey *pk = keys_vol_down; *pk != KEY_NULL; ++pk) {
     if (IsKeyPressed(*pk)) {
       --g_slider_curr;
+      input_event_happened = true;
       break;
     }
   }
@@ -136,10 +141,21 @@ int dlg_tick(void) {
   }
 
   // actually we don't need it
-  // Color rai_background = {.r = 0, .g = 0, .b = 0, .a = 0};
-  // ClearBackground(rai_background);
-
+  Color rai_background = {.r = 0, .g = 0, .b = 0, .a = 0};
+  ClearBackground(rai_background);
   EndDrawing();
+
+  if (input_event_happened) {
+    g_idle = 0.0f;
+  } else {
+    g_idle += GetFrameTime();
+  }
+
+  if (g_idle >= 5.0) {
+    g_idle = 0.0f;
+    dlg_close();
+  }
+
   return 1;
 }
 //////////////////////////////////////////////////////////////
