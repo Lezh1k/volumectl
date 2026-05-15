@@ -129,10 +129,10 @@ void pa_io_event_cb(pa_mainloop_api *ea, pa_io_event *e, int fd,
   // if panel on top - positive offset. else - negative offset (offset =
   // block.height)
   int32_t coeff = ci.y - ci.rel_y == 0 ? 1 : -1;
-  dlg_init_t di = {.width = ci.blk_w + 150,
-                   .heigth = ci.blk_h, // (same as block)
-                   .pos_x = ci.x - ci.rel_x - ci.blk_w / 2,
-                   .pos_y = ci.y - ci.rel_y + ci.blk_h * coeff};
+  dlg_geometry_t di = {.width = ci.blk_w + 150,
+                       .heigth = ci.blk_h, // (same as block)
+                       .pos_x = ci.x - ci.rel_x - ci.blk_w / 2,
+                       .pos_y = ci.y - ci.rel_y + ci.blk_h * coeff};
   dlg_open(g_curr_vol, &di);
 
   log_trace("[stdin] click_info:\n");

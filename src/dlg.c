@@ -18,6 +18,7 @@ static int text_height(mu_Font font) {
 }
 
 static volatile bool g_open = false;
+
 static mu_Context g_ctx = {0};
 static float g_slider_curr = 0.0f;
 static float g_slider_prev = 0.0f;
@@ -25,14 +26,15 @@ static float g_slider_prev = 0.0f;
 #define IDLE_TIMEOUT 5.0f
 static float g_idle = 0.0f;
 
-static dlg_init_t g_di = {0};
+static dlg_geometry_t g_di = {0};
 
-int dlg_open(int64_t vol, const dlg_init_t *di) {
+int dlg_open(int64_t vol, const dlg_geometry_t *di) {
   if (g_open || !di) {
     return 0;
   }
 
   g_di = *di;
+  g_idle = 0.0f;
   g_slider_curr = (float)vol;
   g_slider_prev = g_slider_curr;
 
@@ -150,7 +152,6 @@ int dlg_tick(void) {
 
   g_idle += GetFrameTime() * (!input_event_happened);
   if (g_idle >= IDLE_TIMEOUT) {
-    g_idle = 0.0f;
     dlg_close();
   }
 
@@ -162,6 +163,7 @@ void dlg_close(void) {
   if (!g_open) {
     return;
   }
+  g_idle = 0.0f;
   CloseWindow();
   g_open = false;
 }
