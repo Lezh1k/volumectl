@@ -21,7 +21,10 @@ static volatile bool g_open = false;
 static mu_Context g_ctx = {0};
 static float g_slider_curr = 0.0f;
 static float g_slider_prev = 0.0f;
+
+#define IDLE_TIMEOUT 5.0f
 static float g_idle = 0.0f;
+
 static dlg_init_t g_di = {0};
 
 int dlg_open(int64_t vol, const dlg_init_t *di) {
@@ -145,13 +148,8 @@ int dlg_tick(void) {
   ClearBackground(rai_background);
   EndDrawing();
 
-  if (input_event_happened) {
-    g_idle = 0.0f;
-  } else {
-    g_idle += GetFrameTime();
-  }
-
-  if (g_idle >= 5.0) {
+  g_idle += GetFrameTime() * (!input_event_happened);
+  if (g_idle >= IDLE_TIMEOUT) {
     g_idle = 0.0f;
     dlg_close();
   }
