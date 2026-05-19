@@ -17,10 +17,7 @@ find_package( cJSON REQUIRED )
 find_package( PulseAudio REQUIRED )
 
 # these messages are just to be sure I uses variables correctly
-message( "raylib incs: ${raylib_INCLUDE_DIRS}" )
-message( "raylib libs: ${raylib_LIBRARIES}" )
-message( "cjson incs: ${CJSON_INCLUDE_DIRS}" )
-message( "cjson libs: ${CJSON_LIBRARIES}" )
+
 message( "PA incs: ${PULSEAUDIO_INCLUDE_DIR}" )
 message( "PA libs: ${PULSEAUDIO_LIBRARY}" )
 
@@ -72,15 +69,13 @@ target_compile_options(microui PRIVATE
 target_include_directories( ${PROJECT_NAME} PRIVATE 
   inc
   vendor/microui/src
-  ${raylib_INCLUDE_DIRS} 
-  ${CJSON_INCLUDE_DIRS} 
-  ${PULSEAUDIO_INCLUDE_DIR} 
+  raylib
 )
 
 target_link_libraries( ${PROJECT_NAME} PRIVATE
   m
   microui
-  ${raylib_LIBRARIES}
-  ${CJSON_LIBRARIES}
+  raylib
+  cjson
   ${PULSEAUDIO_LIBRARY}
 )
