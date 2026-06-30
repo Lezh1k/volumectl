@@ -20,6 +20,6 @@ local function save_and_run_unit_tests()
 end
 
 local opts = { noremap = true, silent = true }
-vim.keymap.set("n", "<C-R>", save_and_run, opts)
+vim.keymap.set("n", "<C-E>", save_and_run, opts)
 vim.keymap.set("n", "<C-T>", save_and_run_unit_tests, opts)
 vim.keymap.set("n", "<F5>", save_and_debug, opts)
