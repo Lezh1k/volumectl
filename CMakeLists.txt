@@ -15,6 +15,7 @@ set(CMAKE_C_EXTENSIONS OFF)
 find_package( raylib REQUIRED )
 find_package( cJSON REQUIRED )
 find_package( PulseAudio REQUIRED )
+find_package( Threads REQUIRED )
 
 # these messages are just to be sure I uses variables correctly
 
@@ -77,5 +78,6 @@ target_link_libraries( ${PROJECT_NAME} PRIVATE
   microui
   raylib
   cjson
+  Threads::Threads
   ${PULSEAUDIO_LIBRARY}
 )
