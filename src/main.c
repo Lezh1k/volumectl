@@ -324,8 +324,9 @@ int main(int argc, char *argv[], char **env) {
   // FPS = 60 so sleep should be 16000ns
   struct timespec ts_sleep_between_frames = {.tv_sec = 0, .tv_nsec = 16000};
   // g_running changes via signal, see pa_exit_signal_cb
-  while (g_running && (pa_mainloop_iterate(pa_ml, 0, &rc) >= 0)) {
-    if (dlg_is_open()) {
+  while (g_running && (pa_mainloop_iterate(pa_ml, 1, &rc) >= 0)) {
+    while (dlg_is_open() && g_running &&
+           (pa_mainloop_iterate(pa_ml, 0, &rc) >= 0)) {
       dlg_tick();
       int64_t dlg_vol = dlg_current_vol();
       if (dlg_vol != g_curr_vol) {
@@ -340,8 +341,8 @@ int main(int argc, char *argv[], char **env) {
                                             g_current_sink_channels);
         g_curr_vol = dlg_vol;
       }
+      nanosleep(&ts_sleep_between_frames, NULL);
     }
-    nanosleep(&ts_sleep_between_frames, NULL);
   }
 
   log_trace("pa_mainloop_free\n");
