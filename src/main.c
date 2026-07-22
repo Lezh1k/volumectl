@@ -45,13 +45,16 @@ static void ctx_state_changed_cb(pa_context *pa_ctx, void *userdata);
 static void set_sink_vol_status_cb(pa_context *c, int success, void *userdata);
 static void set_sink_volume_by_idx_and_channels(pa_context *c, uint32_t idx,
                                                 uint8_t channels);
-static void set_sink_volume_cb(pa_context *c, const pa_sink_info *i, int eol,
-                               void *userdata);
+// static void set_sink_volume_cb(pa_context *c, const pa_sink_info *i, int eol,
+//                                void *userdata);
 
 int parse_click_info_json(const char *json, click_info_t *out) {
   if (!json || !out)
     return -1;
-  *out = (click_info_t){0};
+  out->x = out->y = 300;
+  out->blk_w = 300;
+  out->blk_h = 150;
+  out->rel_x = out->rel_y = 0;
   cJSON *root = cJSON_Parse(json);
   if (!root)
     return -1;
@@ -100,6 +103,9 @@ void die(const char *msg) {
 
 void pa_exit_signal_cb(pa_mainloop_api *api, pa_signal_event *e, int sig,
                        void *userdata) {
+  UNUSED(api);
+  UNUSED(e);
+  UNUSED(userdata);
   log_trace("Got exit signal %d\n", sig);
   g_running = false;
 }
@@ -107,6 +113,10 @@ void pa_exit_signal_cb(pa_mainloop_api *api, pa_signal_event *e, int sig,
 
 void pa_io_event_cb(pa_mainloop_api *ea, pa_io_event *e, int fd,
                     pa_io_event_flags_t events, void *userdata) {
+  UNUSED(ea);
+  UNUSED(e);
+  UNUSED(events);
+  UNUSED(userdata);
   if (fd != STDIN_FILENO) {
     log_debug("unexpected input fd: %d\n", fd);
     return; // we expect input only from stdin
@@ -147,6 +157,9 @@ void pa_io_event_cb(pa_mainloop_api *ea, pa_io_event *e, int fd,
 
 void pa_sink_info_cb(pa_context *c, const pa_sink_info *i, int eol,
                      void *userdata) {
+  UNUSED(c);
+  UNUSED(eol);
+  UNUSED(userdata);
   if (i == NULL) {
     return; // probably impossible
   }
@@ -215,6 +228,7 @@ void ctx_on_change_cb(pa_context *c, pa_subscription_event_type_t t,
 //////////////////////////////////////////////////////////////
 
 void subscribe_success_cb(pa_context *c, int success, void *userdata) {
+  UNUSED(userdata);
   log_trace("subscribe_success_cb succes = %d\n", success);
   if (!success) {
     die("subscribe_ctx_cb");
@@ -224,6 +238,7 @@ void subscribe_success_cb(pa_context *c, int success, void *userdata) {
 //////////////////////////////////////////////////////////////
 
 void ctx_state_changed_cb(pa_context *pa_ctx, void *userdata) {
+  UNUSED(userdata);
   pa_context_state_t state = pa_context_get_state(pa_ctx);
   log_trace("pa_context_notify_cb: state = %x\n", state);
 
@@ -252,6 +267,8 @@ void ctx_state_changed_cb(pa_context *pa_ctx, void *userdata) {
 //////////////////////////////////////////////////////////////
 
 void set_sink_vol_status_cb(pa_context *c, int success, void *userdata) {
+  UNUSED(c);
+  UNUSED(userdata);
   if (!success) {
     log_error("set_sink_vol_cb:: set vol not success\n");
   }
@@ -275,13 +292,15 @@ void set_sink_volume_by_idx_and_channels(pa_context *c, uint32_t idx,
 }
 //////////////////////////////////////////////////////////////
 
-void set_sink_volume_cb(pa_context *c, const pa_sink_info *i, int eol,
-                        void *userdata) {
-  if (i == NULL) {
-    return;
-  }
-  set_sink_volume_by_idx_and_channels(c, i->index, i->channel_map.channels);
-}
+// void set_sink_volume_cb(pa_context *c, const pa_sink_info *i, int eol,
+//                         void *userdata) {
+//   UNUSED(eol);
+//   UNUSED(userdata);
+//   if (i == NULL) {
+//     return;
+//   }
+//   set_sink_volume_by_idx_and_channels(c, i->index, i->channel_map.channels);
+// }
 //////////////////////////////////////////////////////////////
 
 int main(int argc, char *argv[], char **env) {

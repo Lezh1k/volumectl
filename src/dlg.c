@@ -45,7 +45,8 @@ int dlg_open(int64_t vol, const dlg_geometry_t *di) {
   // I don't want any logs in STDOUT because use it in i3blocks env
   SetTraceLogLevel(LOG_NONE);
   SetTargetFPS(60);
-  SetConfigFlags(FLAG_WINDOW_UNDECORATED | FLAG_VSYNC_HINT);
+  // SetConfigFlags(FLAG_WINDOW_UNDECORATED | FLAG_VSYNC_HINT);
+  SetConfigFlags(FLAG_WINDOW_UNDECORATED);
   InitWindow(g_di.width, g_di.heigth, "volumectl");
   SetWindowPosition(g_di.pos_x, g_di.pos_y);
 
@@ -64,19 +65,21 @@ int dlg_tick(void) {
     return 0;
   }
 
-  Vector2 mp = GetMousePosition();
+  Color rai_background = {.r = 0, .g = 0, .b = 0, .a = 0};
+  ClearBackground(rai_background);
   BeginDrawing();
 
-  bool input_event_happened = false;
+  int input_event_happened = 0;
   // mu_input functions
   // MOUSE_BUTTON_LEFT = 0 and MU_MOUSE_LEFT = (1 << 0)
   // MOUSE_BUTTON_RIGHT = 1 and MU_MOUSE_RIGHT = (1 << 1)
   // MOUSE_BUTTON_MIDDLE = 2 and MU_MOUSE_MIDDLE = (1 << 2)
+  Vector2 mp = GetMousePosition();
   mu_input_mousemove(&g_ctx, mp.x, mp.y);
   for (int btn = MOUSE_BUTTON_LEFT; btn <= MOUSE_BUTTON_MIDDLE; ++btn) {
     if (IsMouseButtonDown(btn)) {
       mu_input_mousedown(&g_ctx, mp.x, mp.y, 1 << btn);
-      input_event_happened = true;
+      input_event_happened = 1;
     }
     if (IsMouseButtonUp(btn)) {
       mu_input_mouseup(&g_ctx, mp.x, mp.y, 1 << btn);
@@ -89,23 +92,22 @@ int dlg_tick(void) {
                                        KEY_NULL};
   for (const KeyboardKey *pk = keys_vol_up; *pk != KEY_NULL; ++pk) {
     if (IsKeyPressed(*pk)) {
-      ++g_slider_curr;
-      input_event_happened = true;
+      g_slider_curr += 1.0f;
+      input_event_happened = 1;
       break;
     }
   }
   for (const KeyboardKey *pk = keys_vol_down; *pk != KEY_NULL; ++pk) {
     if (IsKeyPressed(*pk)) {
-      --g_slider_curr;
-      input_event_happened = true;
+      g_slider_curr -= 1.0f;
+      input_event_happened = 1;
       break;
     }
   }
+  // if sc < 0 sc = 0; if sc > 100 sc = 100
+  g_slider_curr = MIN(MAX(g_slider_curr, 0), 100);
 
-  g_slider_curr = MIN(MAX(g_slider_curr, 0),
-                      100); // if sc < 0 sc = 0; if sc > 100 sc = 100
   // !mu_input end
-
   // process ui
   mu_begin(&g_ctx);
   if (!mu_begin_window_ex(&g_ctx, "Volumectl",
@@ -145,12 +147,9 @@ int dlg_tick(void) {
     g_slider_prev = g_slider_curr;
   }
 
-  // actually we don't need it
-  Color rai_background = {.r = 0, .g = 0, .b = 0, .a = 0};
-  ClearBackground(rai_background);
   EndDrawing();
 
-  g_idle += GetFrameTime() * (!input_event_happened);
+  g_idle = g_idle * (!input_event_happened) + GetFrameTime();
   if (g_idle >= IDLE_TIMEOUT) {
     dlg_close();
   }
