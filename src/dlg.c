@@ -28,6 +28,22 @@ static float g_idle = 0.0f;
 
 static dlg_geometry_t g_di = {0};
 
+static bool g_win_ready = false;
+
+static void ensure_window(void) {
+  if (g_win_ready) {
+    return;
+  }
+  // I don't want any logs in STDOUT because use it in i3blocks env
+  SetTraceLogLevel(LOG_NONE);
+  SetConfigFlags(FLAG_WINDOW_UNDECORATED | FLAG_WINDOW_HIDDEN);
+  InitWindow(1, 1, "volumectl");
+  SetTargetFPS(60);
+  SetExitKey(KEY_NULL);
+  g_win_ready = true;
+}
+//////////////////////////////////////////////////////////////
+
 int dlg_open(int64_t vol, const dlg_geometry_t *di) {
   if (g_open || !di) {
     return 0;
@@ -42,14 +58,12 @@ int dlg_open(int64_t vol, const dlg_geometry_t *di) {
   g_ctx.text_height = text_height;
   g_ctx.text_width = text_width;
 
-  // I don't want any logs in STDOUT because use it in i3blocks env
-  SetTraceLogLevel(LOG_NONE);
-  SetTargetFPS(60);
-  // SetConfigFlags(FLAG_WINDOW_UNDECORATED | FLAG_VSYNC_HINT);
-  SetConfigFlags(FLAG_WINDOW_UNDECORATED);
-  InitWindow(g_di.width, g_di.heigth, "volumectl");
-  SetWindowPosition(g_di.pos_x, g_di.pos_y);
+  ensure_window();
 
+  SetWindowSize(g_di.width, g_di.heigth);
+  SetWindowPosition(g_di.pos_x, g_di.pos_y);
+  ClearWindowState(FLAG_WINDOW_HIDDEN);
+  SetWindowFocused();
   g_open = true;
   return 0;
 }
@@ -65,9 +79,9 @@ int dlg_tick(void) {
     return 0;
   }
 
-  Color rai_background = {.r = 0, .g = 0, .b = 0, .a = 0};
-  ClearBackground(rai_background);
   BeginDrawing();
+  Color rai_background = {.r = 0, .g = 0, .b = 0, .a = 1};
+  ClearBackground(rai_background);
 
   int input_event_happened = 0;
   // mu_input functions
@@ -147,10 +161,11 @@ int dlg_tick(void) {
     g_slider_prev = g_slider_curr;
   }
 
+  bool want_close = IsKeyPressed(KEY_ESCAPE) || WindowShouldClose();
   EndDrawing();
 
   g_idle = g_idle * (!input_event_happened) + GetFrameTime();
-  if (g_idle >= IDLE_TIMEOUT) {
+  if (want_close || g_idle >= IDLE_TIMEOUT) {
     dlg_close();
   }
 
@@ -163,7 +178,8 @@ void dlg_close(void) {
     return;
   }
   g_idle = 0.0f;
-  CloseWindow();
+  // CloseWindow();
+  SetWindowState(FLAG_WINDOW_HIDDEN);
   g_open = false;
 }
 //////////////////////////////////////////////////////////////
