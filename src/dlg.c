@@ -23,7 +23,7 @@ static mu_Context g_ctx = {0};
 static float g_slider_curr = 0.0f;
 static float g_slider_prev = 0.0f;
 
-#define IDLE_TIMEOUT 5.0f
+#define IDLE_TIMEOUT 4.0f
 static float g_idle = 0.0f;
 
 static dlg_geometry_t g_di = {0};
