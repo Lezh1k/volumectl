@@ -12,6 +12,9 @@ set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 set(CMAKE_C_EXTENSIONS OFF)
 
+find_package( PkgConfig REQUIRED )
+pkg_check_modules( XCB REQUIRED IMPORTED_TARGET xcb )
+
 find_package( raylib REQUIRED )
 find_package( cJSON REQUIRED )
 find_package( PulseAudio REQUIRED )
@@ -79,5 +82,6 @@ target_link_libraries( ${PROJECT_NAME} PRIVATE
   raylib
   cjson
   Threads::Threads
+  PkgConfig::XCB
   ${PULSEAUDIO_LIBRARY}
 )

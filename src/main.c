@@ -136,8 +136,8 @@ void pa_io_event_cb(pa_mainloop_api *ea, pa_io_event *e, int fd,
     return;
   }
 
-  // if panel on top - positive offset. else - negative offset (offset =
-  // block.height)
+  // if panel on top - positive offset.
+  // else - negative offset (offset = block.height)
   int32_t coeff = ci.y - ci.rel_y == 0 ? 1 : -1;
   dlg_geometry_t di = {.width = ci.blk_w + 150,
                        .heigth = ci.blk_h, // (same as block)

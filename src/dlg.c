@@ -46,7 +46,6 @@ static void ensure_window(void) {
 //////////////////////////////////////////////////////////////
 
 int dlg_open(int64_t vol, const dlg_geometry_t *di) {
-  log_trace("dlg_open\n");
   if (g_open || !di) {
     return 0;
   }
@@ -68,7 +67,6 @@ int dlg_open(int64_t vol, const dlg_geometry_t *di) {
   SetWindowFocused();
   g_open = true;
   g_win_first_tick = true;
-  log_trace("dlg_open end. idle: %f\n", g_idle);
   return 0;
 }
 //////////////////////////////////////////////////////////////
@@ -82,8 +80,6 @@ int dlg_tick(void) {
     dlg_close();
     return 0;
   }
-
-  log_trace("dlg_tick\n");
 
   BeginDrawing();
   Color rai_background = {.r = 0, .g = 0, .b = 0, .a = 1};
@@ -170,14 +166,13 @@ int dlg_tick(void) {
   bool want_close = IsKeyPressed(KEY_ESCAPE) || WindowShouldClose();
   EndDrawing();
 
-  g_idle = g_idle * (!input_event_happened) + GetFrameTime() * (!g_win_first_tick);
+  g_idle =
+      g_idle * (!input_event_happened) + GetFrameTime() * (!g_win_first_tick);
   g_win_first_tick = false;
   if (want_close || g_idle >= IDLE_TIMEOUT) {
-    log_trace("want close: %d\nidle: %f\n", want_close, g_idle);
     dlg_close();
   }
 
-  log_trace("dlg_tick end\n");
   return 1;
 }
 //////////////////////////////////////////////////////////////
