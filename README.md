@@ -50,6 +50,30 @@ Fields:
 - `relative_x`, `relative_y`: click position relative to the block
 - `width`, `height`: block size
 
+## Configuration
+The slider window's font (X11 backend only, `dlg_x.c`) is configurable via environment variables:
+
+- `VOLUMECTL_FONT`: X core font family name (default: `fixed`)
+- `VOLUMECTL_FONT_SIZE`: pixel size (default: `20`)
+
+```bash
+VOLUMECTL_FONT=courier VOLUMECTL_FONT_SIZE=17 ./build/volumectl
+```
+
+These select an [X core bitmap font](https://en.wikipedia.org/wiki/X_logical_font_description) via `XLoadQueryFont`,
+**not** a scalable TrueType font — a given family only exists in whatever discrete pixel sizes are actually
+installed on the X server. Requesting a size that isn't installed fails to load and silently falls back to the
+default `fixed` font (a warning is logged). Before setting `VOLUMECTL_FONT_SIZE`, check which sizes actually exist
+for a family:
+
+```bash
+xlsfonts -fn '-*-<family>-*-*-*-*-*-*-*-*-*-*-*-*'
+# e.g. for the default family:
+xlsfonts -fn '-*-fixed-*-*-*-*-*-*-*-*-*-*-*-*'
+```
+
+The 7th field of each returned XLFD name (e.g. `...-13-100-...`) is a valid pixel size for that family.
+
 ## i3blocks integration (example)
 Example block config using click events (adjust to your setup):
 

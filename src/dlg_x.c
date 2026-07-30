@@ -6,6 +6,7 @@
 #include <X11/Xlib.h>
 #include <X11/keysym.h>
 
+#include <stdlib.h>
 #include <string.h>
 #include <time.h>
 
@@ -13,7 +14,9 @@
 #define MIN(a, b) (((a) < (b)) ? (a) : (b))
 
 #define IDLE_TIMEOUT 4.0f
-#define FONT_SIZE 20
+#define DEFAULT_FONT_NAME "fixed"
+#define DEFAULT_FONT_SIZE 20
+#define FALLBACK_FONT_NAME "fixed" /* always available on any X server */
 
 static bool g_open = false;
 static struct timespec g_last_tick_ts = {0};
@@ -21,6 +24,7 @@ static struct timespec g_last_tick_ts = {0};
 static Display *g_disp = NULL;
 static Window g_win = None;
 static GC g_gc = NULL;
+static XFontStruct *g_font = NULL;
 
 /* Window that had X input focus right before we stole it, so dlg_close()
    can hand focus back explicitly. Needed because g_win is override_redirect
@@ -41,18 +45,56 @@ static const int EVENT_MASK = ExposureMask | KeyPressMask | ButtonPressMask |
                               ButtonReleaseMask | PointerMotionMask |
                               StructureNotifyMask;
 
+/* Loads the font named by VOLUMECTL_FONT/VOLUMECTL_FONT_SIZE (defaulting to
+   DEFAULT_FONT_NAME/DEFAULT_FONT_SIZE), falling back to FALLBACK_FONT_NAME
+   if the requested family/size combination doesn't exist on this server.
+   These are X core bitmap fonts, not scalable TrueType -- a family only
+   exists in whatever discrete pixel sizes are installed (see README.md's
+   Configuration section for how to list them with xlsfonts). */
+static XFontStruct *load_configured_font(Display *disp) {
+  const char *name = getenv("VOLUMECTL_FONT");
+  if (!name || !*name) {
+    name = DEFAULT_FONT_NAME;
+  }
+
+  int size = DEFAULT_FONT_SIZE;
+  const char *size_str = getenv("VOLUMECTL_FONT_SIZE");
+  if (size_str && *size_str) {
+    int parsed = atoi(size_str);
+    if (parsed > 0) {
+      size = parsed;
+    } else {
+      log_error("invalid VOLUMECTL_FONT_SIZE: %s, using default %d\n", size_str,
+                size);
+    }
+  }
+
+  char xlfd[256];
+  snprintf(xlfd, sizeof(xlfd), "-*-%s-*-*-*-*-%d-*-*-*-*-*-*-*", name, size);
+
+  XFontStruct *font = XLoadQueryFont(disp, xlfd);
+  if (!font) {
+    log_error("failed to load font '%s' size %d (pattern: %s), "
+              "falling back to '%s'\n",
+              name, size, xlfd, FALLBACK_FONT_NAME);
+    font = XLoadQueryFont(disp, FALLBACK_FONT_NAME);
+  }
+  return font;
+}
+//////////////////////////////////////////////////////////////
+
 static int text_width(mu_Font font, const char *txt, int len) {
   UNUSED(font);
   if (len < 0) {
     len = (int)strlen(txt);
   }
-  return len * FONT_SIZE;
+  return XTextWidth(g_font, txt, len);
 }
 //////////////////////////////////////////////////////////////
 
 static int text_height(mu_Font font) {
   UNUSED(font);
-  return FONT_SIZE;
+  return g_font->ascent + g_font->descent;
 }
 //////////////////////////////////////////////////////////////
 
@@ -95,6 +137,14 @@ int dlg_open(int64_t vol, const dlg_geometry_t *di) {
     return 1;
   }
 
+  g_font = load_configured_font(g_disp);
+  if (!g_font) {
+    log_error("failed to load fallback font '%s'\n", FALLBACK_FONT_NAME);
+    XCloseDisplay(g_disp);
+    g_disp = NULL;
+    return 1;
+  }
+
   mu_init(&g_ctx);
   g_ctx.text_height = text_height;
   g_ctx.text_width = text_width;
@@ -108,8 +158,9 @@ int dlg_open(int64_t vol, const dlg_geometry_t *di) {
                               border_color, background);
 
   g_gc = XCreateGC(g_disp, g_win, 0, NULL);
+  XSetFont(g_disp, g_gc, g_font->fid);
 
-  /* Bypass the window manager: no title bar, no decorations */
+  // Bypass the window manager: no title bar, no decorations
   XSetWindowAttributes attrs;
   attrs.override_redirect = True;
   XChangeWindowAttributes(g_disp, g_win, CWOverrideRedirect, &attrs);
@@ -225,7 +276,7 @@ int dlg_tick(void) {
   mu_end_window(&g_ctx);
   mu_end(&g_ctx);
 
-  // // process commands
+  // process commands
   mu_Command *cmd = NULL;
   while (mu_next_command(&g_ctx, &cmd)) {
     switch (cmd->type) {
@@ -247,8 +298,11 @@ int dlg_tick(void) {
                             ((cmd->text.color.g & 0xff) << 8) |
                             ((cmd->text.color.b & 0xff));
       XSetForeground(g_disp, g_gc, pixel);
-      XDrawString(g_disp, g_win, g_gc, cmd->text.pos.x, cmd->text.pos.y,
-                  cmd->text.str, strlen(cmd->text.str));
+      /* cmd->text.pos.y is the top of the text box (see text_height()),
+         but XDrawString expects a baseline -- offset by the font's ascent. */
+      XDrawString(g_disp, g_win, g_gc, cmd->text.pos.x,
+                  cmd->text.pos.y + g_font->ascent, cmd->text.str,
+                  strlen(cmd->text.str));
     } break;
     } // switch (cmd->type)
   } // while(mu_next_command(ctx, &cmd)
@@ -290,10 +344,12 @@ void dlg_close(void) {
   XFreeGC(g_disp, g_gc);
   XUnmapWindow(g_disp, g_win);
   XDestroyWindow(g_disp, g_win);
+  XFreeFont(g_disp, g_font);
   XFlush(g_disp);
   XCloseDisplay(g_disp);
 
   g_gc = NULL;
+  g_font = NULL;
 }
 //////////////////////////////////////////////////////////////
 
