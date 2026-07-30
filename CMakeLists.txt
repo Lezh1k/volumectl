@@ -6,16 +6,21 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type" FORCE)
+  # set(CMAKE_BUILD_TYPE Debug CACHE STRING "Build type" FORCE)
 endif()
 
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 set(CMAKE_C_EXTENSIONS OFF)
 
-find_package( PkgConfig REQUIRED )
-pkg_check_modules( XCB REQUIRED IMPORTED_TARGET xcb )
+option( DLG_BACKEND_X "Use microui+libxcb dialog backend instead of raylib" ON )
 
-find_package( raylib REQUIRED )
+if( DLG_BACKEND_X )
+  find_package(X11 REQUIRED)
+else()
+  find_package( raylib REQUIRED )
+endif()
+
 find_package( cJSON REQUIRED )
 find_package( PulseAudio REQUIRED )
 find_package( Threads REQUIRED )
@@ -41,13 +46,18 @@ set(sources
   inc/sys.h
 
   # sources
-  src/dlg.c
   src/main.c
   src/out.c
   src/sys.c
 
   # other files (like ui forms)
 )
+
+if( DLG_BACKEND_X )
+  list( APPEND sources src/dlg_x.c )
+else()
+  list( APPEND sources src/dlg.c )
+endif()
 
 add_executable( ${PROJECT_NAME} ${sources} )
 add_library( microui STATIC vendor/microui/src/microui.h vendor/microui/src/microui.c )
@@ -70,18 +80,24 @@ target_compile_options(microui PRIVATE
   $<$<CONFIG:Debug>:-O0 -g>
 )
 
-target_include_directories( ${PROJECT_NAME} PRIVATE 
+target_include_directories( ${PROJECT_NAME} PRIVATE
   inc
   vendor/microui/src
-  raylib
 )
 
 target_link_libraries( ${PROJECT_NAME} PRIVATE
   m
   microui
-  raylib
   cjson
   Threads::Threads
-  PkgConfig::XCB
   ${PULSEAUDIO_LIBRARY}
 )
+
+if( DLG_BACKEND_X )
+  target_link_libraries ( ${PROJECT_NAME} PRIVATE
+    X11
+  )
+else()
+  target_include_directories( ${PROJECT_NAME} PRIVATE raylib )
+  target_link_libraries( ${PROJECT_NAME} PRIVATE raylib )
+endif()
