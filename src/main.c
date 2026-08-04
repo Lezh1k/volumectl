@@ -341,7 +341,7 @@ int main(int argc, char *argv[], char **env) {
                                         pa_io_event_cb, NULL);
 
   // FPS = 60 so sleep should be 16000ns
-  struct timespec ts_sleep_between_frames = {.tv_sec = 0, .tv_nsec = 16000};
+  struct timespec ts_sleep_between_frames = {.tv_sec = 0, .tv_nsec = 16000 * 1000};
   // g_running changes via signal, see pa_exit_signal_cb
   while (g_running && (pa_mainloop_iterate(pa_ml, 1, &rc) >= 0)) {
     while (dlg_is_open() && g_running &&

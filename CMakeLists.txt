@@ -16,7 +16,9 @@ set(CMAKE_C_EXTENSIONS OFF)
 option( DLG_BACKEND_X "Use microui+libxcb dialog backend instead of raylib" ON )
 
 if( DLG_BACKEND_X )
-  find_package(X11 REQUIRED)
+  find_package( X11 REQUIRED )
+  message( "X11 incs: ${X11_INCLUDE_DIR}" )
+  message( "X11 libs: ${X11_LIBRARIES}" )
 else()
   find_package( raylib REQUIRED )
 endif()
@@ -94,9 +96,8 @@ target_link_libraries( ${PROJECT_NAME} PRIVATE
 )
 
 if( DLG_BACKEND_X )
-  target_link_libraries ( ${PROJECT_NAME} PRIVATE
-    X11
-  )
+  target_include_directories( ${PROJECT_NAME} PRIVATE ${X11_INCLUDE_DIR} )
+  target_link_libraries ( ${PROJECT_NAME} PRIVATE ${X11_LIBRARIES} )
 else()
   target_include_directories( ${PROJECT_NAME} PRIVATE raylib )
   target_link_libraries( ${PROJECT_NAME} PRIVATE raylib )
