@@ -184,6 +184,12 @@ int dlg_open(int64_t vol, const dlg_geometry_t *di) {
 }
 //////////////////////////////////////////////////////////////
 
+static int not_failing_x_error_handler(Display *disp, XErrorEvent *ev) {
+  UNUSED(disp);
+  log_error("req: %d, error: %d", ev->request_code, ev->error_code);
+  return 0;
+}
+
 int dlg_tick(void) {
   if (!g_open) {
     return 0;
@@ -193,14 +199,15 @@ int dlg_tick(void) {
   bool want_close = false;
 
   XEvent event;
+  XErrorHandler old_eh = XSetErrorHandler(not_failing_x_error_handler);
   while (XCheckWindowEvent(g_disp, g_win, EVENT_MASK, &event)) {
     switch (event.type) {
-    case MapNotify:
+    case MapNotify: {
       /* Window is now on screen and viewable — grab focus.
          Doing this before the window is viewable would raise
          a BadMatch error, which is why we wait for MapNotify. */
       XSetInputFocus(g_disp, g_win, RevertToParent, CurrentTime);
-      break;
+    } break;
 
     case Expose:
       // not sure if I want this
@@ -256,6 +263,9 @@ int dlg_tick(void) {
       break;
     }
   }
+  
+  XSync(g_disp, false);
+  XSetErrorHandler(old_eh);
 
   g_slider_curr = MIN(MAX(g_slider_curr, 0), 100);
 
