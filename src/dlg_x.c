@@ -221,8 +221,9 @@ int dlg_tick(void) {
         want_close = true;
         break;
       }
-      KeySym keys_vol_up[] = {XK_k, XK_K, XK_l, XK_L, XK_Up, XK_Right, 0};
-      KeySym keys_vol_down[] = {XK_j, XK_J, XK_h, XK_H, XK_Down, XK_Left, 0};
+      const KeySym keys_vol_up[] = {XK_k, XK_K, XK_l, XK_L, XK_Up, XK_Right, 0};
+      const KeySym keys_vol_down[] = {XK_j,    XK_J,    XK_h, XK_H,
+                                      XK_Down, XK_Left, 0};
 
       for (const KeySym *pk = keys_vol_up; *pk != 0; ++pk) {
         if (key == *pk) {
@@ -239,31 +240,31 @@ int dlg_tick(void) {
           break;
         }
       }
-      break;
-    }
+    } break;
 
-    case ButtonPress:
+    case ButtonPress: {
       mu_input_mousedown(&g_ctx, event.xbutton.x, event.xbutton.y,
                          xmousebtn_to_mu(event.xbutton.button));
       input_event_happened = 1;
-      break;
+    } break;
 
-    case ButtonRelease:
+    case ButtonRelease: {
       mu_input_mouseup(&g_ctx, event.xbutton.x, event.xbutton.y,
                        xmousebtn_to_mu(event.xbutton.button));
       input_event_happened = 1;
-      break;
+    } break;
 
-    case MotionNotify:
+    case MotionNotify: {
       mu_input_mousemove(&g_ctx, event.xmotion.x, event.xmotion.y);
-      break;
+      input_event_happened = 1;
+    } break;
 
-    default:
+    default: {
       log_trace("not handled events: %d\n", event.type);
-      break;
-    }
-  }
-  
+    } break;
+    } // switch (event.type)
+  } // while (XCheckWindowEvent(g_disp, g_win, EVENT_MASK, &event))
+
   XSync(g_disp, false);
   XSetErrorHandler(old_eh);
 
@@ -347,10 +348,16 @@ void dlg_close(void) {
 
   /* Restore focus to whatever had it before dlg_open() stole it. Our window
      is override_redirect, so i3 won't do this for us, and the default
-     RevertToParent target (root window) leaves nothing focused. */
-  if (g_prev_focus != None) {
-    XSetInputFocus(g_disp, g_prev_focus, g_prev_revert_to, CurrentTime);
-  }
+     RevertToParent target (root window) leaves nothing focused.
+
+     Sometimes I catch BadMatch in XSetInputFocus. So we don't want whole app
+     fail
+   */
+  XErrorHandler old_eh = XSetErrorHandler(not_failing_x_error_handler);
+  XSetInputFocus(g_disp, g_prev_focus, g_prev_revert_to, CurrentTime);
+  XSync(g_disp, false);
+  XSetErrorHandler(old_eh);
+
   XFreeGC(g_disp, g_gc);
   XUnmapWindow(g_disp, g_win);
   XDestroyWindow(g_disp, g_win);
