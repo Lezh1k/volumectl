@@ -19,6 +19,7 @@
 
 vlog_level_t log_level = VLOG_TRACE;
 static volatile bool g_running = true;
+static volatile bool g_needs_reconnect = true;
 static int64_t g_curr_vol = 0;
 
 static uint32_t g_current_sink_idx = 0;
@@ -231,7 +232,8 @@ void subscribe_success_cb(pa_context *c, int success, void *userdata) {
   UNUSED(userdata);
   log_trace("subscribe_success_cb succes = %d\n", success);
   if (!success) {
-    die("subscribe_ctx_cb");
+    log_fatal("subscribe_ctx_cb failed: %d\n", success);
+    exit(1);
   }
   pa_context_set_subscribe_callback(c, ctx_on_change_cb, NULL);
 }
@@ -243,9 +245,9 @@ void ctx_state_changed_cb(pa_context *pa_ctx, void *userdata) {
   log_trace("pa_context_notify_cb: state = %x\n", state);
 
   if (!PA_CONTEXT_IS_GOOD(state)) {
-    // todo restore it somehow, restart everything
-    // etc., instead of die
-    die("PA_CONTEXT IS NOT GOOD\n");
+    log_fatal("PA_CONTEXT IS NOT GOOD: %d\n", (int)state);
+    g_needs_reconnect = true;
+    return;
   }
 
   if (state == PA_CONTEXT_READY) {
@@ -308,65 +310,77 @@ int main(int argc, char *argv[], char **env) {
   (void)argv;
   (void)env;
 
-  int rc;
-  if (sys_cloexec(STDIN_FILENO)) {
-    die("sys_cloexec");
+  int rc = 0;
+  if ((rc = sys_cloexec(STDIN_FILENO))) {
+    log_fatal("sys_cloexec rc: %d\n", rc);
+    exit(1);
   }
 
   pa_mainloop *pa_ml = pa_mainloop_new();
   if (!pa_ml) {
-    die("pa_main_loop_new\n");
+    log_fatal("pa_main_loop_new failed\n");
+    exit(2);
   }
 
   pa_mainloop_api *pa_api = pa_mainloop_get_api(pa_ml);
   if (!pa_api) {
-    die("pa_mainloop_get_api\n");
+    log_fatal("pa_mainloop_get_api failed\n");
+    exit(3);
   }
 
-  if (pa_signal_init(pa_api)) {
-    die("pa_signal_init\n");
+  if ((rc = pa_signal_init(pa_api))) {
+    log_fatal("pa_signal_init rc: %d\n", rc);
+    exit(1);
   }
 
-  int exit_signals[] = {SIGINT, SIGHUP, SIGTERM, -1};
-  for (int *es = exit_signals; *es != -1; ++es) {
+  int exit_signals[] = {SIGINT, SIGHUP, SIGTERM, 0};
+  for (int *es = exit_signals; *es; ++es) {
     if (!pa_signal_new(*es, pa_exit_signal_cb, NULL)) {
       die("pa_signal_new\n");
     }
   }
-
-  pa_context *pa_ctx = pa_context_new(pa_api, "volumectl");
-  rc = pa_context_connect(pa_ctx, NULL, PA_CONTEXT_NOFLAGS, NULL);
-  pa_context_set_state_callback(pa_ctx, ctx_state_changed_cb, NULL);
   pa_io_event *pa_ioev = pa_api->io_new(pa_api, STDIN_FILENO, PA_IO_EVENT_INPUT,
                                         pa_io_event_cb, NULL);
-
   // FPS = 60 so sleep should be 16000ns
-  struct timespec ts_sleep_between_frames = {.tv_sec = 0, .tv_nsec = 16000 * 1000};
-  // g_running changes via signal, see pa_exit_signal_cb
-  while (g_running && (pa_mainloop_iterate(pa_ml, 1, &rc) >= 0)) {
-    while (dlg_is_open() && g_running &&
-           (pa_mainloop_iterate(pa_ml, 0, &rc) >= 0)) {
-      dlg_tick();
-      int64_t dlg_vol = dlg_current_vol();
-      if (dlg_vol != g_curr_vol) {
-        // Performance HACK!
-        // 1. Optimistic panel update
-        // 2. Direct set volume using global sink index and sink channels
-        // By doing this I'm avoiding round trip
-        // (pa_context_get_sink_info_by_index -> set_sink_volume_cb) This makes
-        // update in i3block panel MUCH faster
-        volume_to_stdout(dlg_vol, dlg_vol == 0);
-        set_sink_volume_by_idx_and_channels(pa_ctx, g_current_sink_idx,
-                                            g_current_sink_channels);
-        g_curr_vol = dlg_vol;
+  struct timespec ts_sleep_between_frames = {.tv_sec = 0,
+                                             .tv_nsec = 16000 * 1000};
+  struct timespec ts_sleep_between_reconnects = {.tv_sec = 0,
+                                                 .tv_nsec = 500000 * 1000};
+
+  size_t attempt = 0;
+  while (g_running && g_needs_reconnect && attempt++ < 5) {
+    g_needs_reconnect = false;
+    pa_context *pa_ctx = pa_context_new(pa_api, "volumectl");
+    rc = pa_context_connect(pa_ctx, NULL, PA_CONTEXT_NOFLAGS, NULL);
+    pa_context_set_state_callback(pa_ctx, ctx_state_changed_cb, NULL);
+
+    // g_running changes via signal, see pa_exit_signal_cb
+    while (g_running && !g_needs_reconnect && (pa_mainloop_iterate(pa_ml, 1, &rc) >= 0)) {
+      while (dlg_is_open() && g_running && !g_needs_reconnect &&
+             (pa_mainloop_iterate(pa_ml, 0, &rc) >= 0)) {
+        dlg_tick();
+        int64_t dlg_vol = dlg_current_vol();
+        if (dlg_vol != g_curr_vol) {
+          // Performance HACK!
+          // 1. Optimistic panel update
+          // 2. Direct set volume using global sink index and sink channels
+          // By doing this I'm avoiding round trip
+          // (pa_context_get_sink_info_by_index -> set_sink_volume_cb) This
+          // makes update in i3block panel MUCH faster
+          volume_to_stdout(dlg_vol, dlg_vol == 0);
+          set_sink_volume_by_idx_and_channels(pa_ctx, g_current_sink_idx,
+                                              g_current_sink_channels);
+          g_curr_vol = dlg_vol;
+        }
+        nanosleep(&ts_sleep_between_frames, NULL);
       }
-      nanosleep(&ts_sleep_between_frames, NULL);
     }
+    pa_context_unref(pa_ctx);
+    nanosleep(&ts_sleep_between_reconnects, NULL);
   }
 
   log_trace("pa_mainloop_free\n");
   pa_api->io_free(pa_ioev);
-  pa_context_unref(pa_ctx);
   pa_mainloop_free(pa_ml);
   return 0;
 }
