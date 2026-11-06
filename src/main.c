@@ -347,15 +347,15 @@ int main(int argc, char *argv[], char **env) {
   struct timespec ts_sleep_between_reconnects = {.tv_sec = 0,
                                                  .tv_nsec = 500000 * 1000};
 
-  size_t attempt = 0;
-  while (g_running && g_needs_reconnect && attempt++ < 5) {
+  while (g_running && g_needs_reconnect) {
     g_needs_reconnect = false;
     pa_context *pa_ctx = pa_context_new(pa_api, "volumectl");
     rc = pa_context_connect(pa_ctx, NULL, PA_CONTEXT_NOFLAGS, NULL);
     pa_context_set_state_callback(pa_ctx, ctx_state_changed_cb, NULL);
 
     // g_running changes via signal, see pa_exit_signal_cb
-    while (g_running && !g_needs_reconnect && (pa_mainloop_iterate(pa_ml, 1, &rc) >= 0)) {
+    while (g_running && !g_needs_reconnect &&
+           (pa_mainloop_iterate(pa_ml, 1, &rc) >= 0)) {
       while (dlg_is_open() && g_running && !g_needs_reconnect &&
              (pa_mainloop_iterate(pa_ml, 0, &rc) >= 0)) {
         dlg_tick();
@@ -377,6 +377,7 @@ int main(int argc, char *argv[], char **env) {
     }
     pa_context_unref(pa_ctx);
     nanosleep(&ts_sleep_between_reconnects, NULL);
+    log_trace("reconnecting\n");
   }
 
   log_trace("pa_mainloop_free\n");
